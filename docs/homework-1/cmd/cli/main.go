@@ -24,7 +24,8 @@ const (
 	StatusReturnedFromClient
 )
 
-// для синхронизации с московским временем
+// добавил часы и минуты, чтобы было легче отлаживать работу функций, где есть проверка с time.Now()
+// для синхронизации с московским временем добавил
 var moscowTime, _ = time.LoadLocation("Europe/Moscow")
 
 type Order struct {
@@ -38,6 +39,8 @@ type Order struct {
 var (
 	ordersByID       map[uint64]*Order              = make(map[uint64]*Order)
 	ordersByReceiver map[uint64]map[uint64]struct{} = make(map[uint64]map[uint64]struct{})
+	//надо наверное чуть более подробную структуру завести
+	returnedOrders map[uint64]struct{} = make(map[uint64]struct{})
 )
 
 var rootCommand cobra.Command = cobra.Command{
@@ -101,13 +104,22 @@ func ReturnOrderFromClient(receiverID uint64, orderIDs []uint64) error {
 			combinedErr = multierr.Append(combinedErr, currentOrderErr)
 			continue
 		}
-		// вот здесь не уверен, что должна быть именно такая логика
-		order.Status = StatusReturnedFromClient
+		delete(ordersByID, orderID)
+		delete(ordersByReceiver[order.ReceiverID], orderID)
+		returnedOrders[orderID] = struct{}{}
 	}
 
 	return combinedErr
 }
-
+func GetReturnedOrders(cmd *cobra.Command, args []string) error {
+	if len(args) > 0 {
+		return fmt.Errorf("expected number of args - %d, got - %d", 0, len(args))
+	}
+	for orderId, _ := range returnedOrders {
+		fmt.Println(orderId)
+	}
+	return nil
+}
 func ProcessOrders(cmd *cobra.Command, args []string) error {
 	if len(args) < 3 {
 		return fmt.Errorf("expected number of args - %d, got - %d", 2, len(args))
@@ -131,7 +143,6 @@ func ProcessOrders(cmd *cobra.Command, args []string) error {
 
 	if action == "issue" {
 		err := GiveOrdersToClient(ReceiverID, orderIDs)
-		fmt.Println(orderIDs)
 		if err != nil {
 			return fmt.Errorf("cannot issue orders: %s", err)
 		}
@@ -224,7 +235,15 @@ func main() {
 			RunE:    ProcessOrders,
 		},
 	)
-
+	rootCommand.AddCommand(
+		&cobra.Command{
+			Use:     "list-returns",
+			Short:   "lr",
+			Example: "",
+			Args:    cobra.NoArgs,
+			RunE:    GetReturnedOrders,
+		},
+	)
 	fmt.Println("welcome")
 	scanner := bufio.NewScanner(os.Stdin)
 	for {
