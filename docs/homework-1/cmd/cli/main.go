@@ -45,6 +45,9 @@ var (
 )
 
 var rootCommand cobra.Command = cobra.Command{
+	Short: "PVZ (Pickup Point) command-line interface",
+	Long: `A simple command-line interface for managing orders in a pickup point.
+	Type 'help' for a list of commands, or 'help <command>' for specific command usage.`,
 	Run: func(cmd *cobra.Command, args []string) {},
 }
 
@@ -290,7 +293,7 @@ func ProcessOrders(cmd *cobra.Command, args []string) error {
 
 func ListOrdersComm(cmd *cobra.Command, args []string) error {
 	if len(args) < 1 {
-		return fmt.Errorf("missing ReceiverID. Usage: list-orders <ReceiverID> [page] [limit]")
+		return fmt.Errorf("missing ReceiverID. Usage: list-orders <ReceiverID> [in-pvz] [page] [limit]")
 	}
 
 	ReceiverID, err := strconv.ParseUint(args[0], 10, 64)
@@ -298,13 +301,22 @@ func ListOrdersComm(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid ReceiverID '%s': must be a number", args[0])
 	}
 
+	inPvz := false
+	remainingArgs := []string{}
+
+	if len(args) > 1 && args[1] == "in-pvz" {
+		inPvz = true
+		remainingArgs = args[2:]
+	} else {
+		remainingArgs = args[1:]
+	}
+
 	currentPage := uint64(1)
 	itemsPerPage := uint64(10)
-
-	if len(args) > 1 {
-		parsedPage, err := strconv.ParseUint(args[1], 10, 64)
+	if len(remainingArgs) > 0 {
+		parsedPage, err := strconv.ParseUint(remainingArgs[0], 10, 64)
 		if err != nil {
-			return fmt.Errorf("invalid page number '%s': must be a number", args[1])
+			return fmt.Errorf("invalid page number '%s': must be a number", remainingArgs[0])
 		}
 		if parsedPage == 0 {
 			return fmt.Errorf("page number cannot be 0")
@@ -312,10 +324,10 @@ func ListOrdersComm(cmd *cobra.Command, args []string) error {
 		currentPage = parsedPage
 	}
 
-	if len(args) > 2 {
-		parsedLimit, err := strconv.ParseUint(args[2], 10, 64)
+	if len(remainingArgs) > 1 {
+		parsedLimit, err := strconv.ParseUint(remainingArgs[1], 10, 64)
 		if err != nil {
-			return fmt.Errorf("invalid limit '%s': must be a number", args[2])
+			return fmt.Errorf("invalid limit '%s': must be a number", remainingArgs[1])
 		}
 		if parsedLimit == 0 {
 			return fmt.Errorf("limit cannot be 0")
@@ -328,6 +340,9 @@ func ListOrdersComm(cmd *cobra.Command, args []string) error {
 		for orderID := range userOrders {
 			order := ordersByID[orderID]
 			if order == nil {
+				continue
+			}
+			if inPvz && order.Status != StatusInStorage {
 				continue
 			}
 			filteredOrders = append(filteredOrders, order)
@@ -408,11 +423,11 @@ func BackOrder(cmd *cobra.Command, args []string) error {
 }
 
 func main() {
-
+	// наверное есть смысл реализовать консольку через флаги, но я реализовал как в воркшопе
 	rootCommand.AddCommand(
 		&cobra.Command{
-			Use:     "accept-order <ReceiverID> <OrderID> <StorageUntil>",
-			Short:   "a",
+			Use:     "accept-order <ReceiverID> <OrderID> <YYYY-MM-DD_HH:MM>",
+			Short:   "Accepts an order from a courier.",
 			Example: "pvz> accept-order 123 101 2025-12-31_15:00",
 			Args:    cobra.ExactArgs(3),
 			RunE:    AddComm,
@@ -420,8 +435,8 @@ func main() {
 	)
 	rootCommand.AddCommand(
 		&cobra.Command{
-			Use:     "list-orders <receiverID> [page] [limit]",
-			Short:   "lo",
+			Use:     "list-orders <ReceiverID> [in-pvz] [page] [limit]",
+			Short:   "Lists orders for a specific receiver.",
 			Example: "pvz> list-orders 123\npvz> list-orders 456 1 5",
 			Args:    cobra.MinimumNArgs(1),
 			RunE:    ListOrdersComm,
@@ -430,7 +445,7 @@ func main() {
 	rootCommand.AddCommand(
 		&cobra.Command{
 			Use:     "return-order <OrderID>",
-			Short:   "ro",
+			Short:   "Returns an order to the courier.",
 			Example: "pvz> return-order 101",
 			Args:    cobra.ExactArgs(1),
 			RunE:    BackOrder,
@@ -439,7 +454,7 @@ func main() {
 	rootCommand.AddCommand(
 		&cobra.Command{
 			Use:     "process-orders <ReceiverID> <action> <OrderID1> [OrderID2...]",
-			Short:   "po",
+			Short:   "Issues orders to a client or accepts returns from a client.",
 			Example: "pvz> process-orders 123 issue 101 102\npvz> process-orders 123 return 103",
 			Args:    cobra.MinimumNArgs(3),
 			RunE:    ProcessOrders,
@@ -448,7 +463,7 @@ func main() {
 	rootCommand.AddCommand(
 		&cobra.Command{
 			Use:     "list-returns [page] [limit]",
-			Short:   "lr",
+			Short:   "Lists all returned orders.",
 			Example: "pvz> list-returns\npvz> list-returns 1 5",
 			Args:    cobra.MaximumNArgs(2),
 			RunE:    GetReturnedOrders,
@@ -457,12 +472,21 @@ func main() {
 	rootCommand.AddCommand(
 		&cobra.Command{
 			Use:     "order-history",
-			Short:   "oh",
+			Short:   "Shows the history of all order status changes (sorted by last update time).",
 			Example: "pvz> order-history",
 			Args:    cobra.NoArgs,
 			RunE:    GetOrdersSortedByTime,
 		},
 	)
+
+	rootCommand.AddCommand(&cobra.Command{
+		Use:   "exit",
+		Short: "Exits the PVZ system.",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Println("Exiting PVZ system.")
+			os.Exit(0)
+		},
+	})
 	fmt.Println("welcome")
 	scanner := bufio.NewScanner(os.Stdin)
 	for {
