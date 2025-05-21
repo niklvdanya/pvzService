@@ -25,7 +25,7 @@ const (
 )
 
 // добавил часы и минуты, чтобы было легче отлаживать работу функций, где есть проверка с time.Now()
-// для синхронизации с московским временем добавил
+// для синхронизации с московским временем добавил time.LoadLocation
 var moscowTime, _ = time.LoadLocation("Europe/Moscow")
 
 type Order struct {
@@ -40,7 +40,7 @@ type Order struct {
 var (
 	ordersByID       map[uint64]*Order              = make(map[uint64]*Order)
 	ordersByReceiver map[uint64]map[uint64]struct{} = make(map[uint64]map[uint64]struct{})
-	//надо наверное чуть более подробную структуру завести
+	//надо наверное чуть более подробную структуру завести для возвратов
 	returnedOrders map[uint64]struct{} = make(map[uint64]struct{})
 )
 
@@ -71,21 +71,33 @@ func paginate[T any](items []T, currentPage, itemsPerPage uint64) []T {
 	return items[startIndex:endIndex]
 }
 
+func getStatusString(status OrderStatus) string {
+	switch status {
+	case StatusInStorage:
+		return "In Storage"
+	case StatusGivenToClient:
+		return "Given to Client"
+	// по сути в default никогда не зайдем, но добавил на всякий случай
+	default:
+		return "Unknown Status"
+	}
+
+}
+
 func GiveOrdersToClient(receiverID uint64, orderIDs []uint64) error {
 	var combinedErr error
 
 	for _, orderID := range orderIDs {
 		var currentOrderErr error
-
 		order, exists := ordersByID[orderID]
 		if !exists {
-			currentOrderErr = fmt.Errorf("order %d not found", orderID)
+			currentOrderErr = fmt.Errorf("order %d: not found", orderID)
 		} else if order.ReceiverID != receiverID {
-			currentOrderErr = fmt.Errorf("order %d belongs to a different receiver (expected %d, got %d)", orderID, receiverID, order.ReceiverID)
+			currentOrderErr = fmt.Errorf("order %d: belongs to a different receiver (expected %d, got %d)", orderID, receiverID, order.ReceiverID)
 		} else if order.Status == StatusGivenToClient {
-			currentOrderErr = fmt.Errorf("order %d already given to client", orderID)
+			currentOrderErr = fmt.Errorf("order %d: already given to client", orderID)
 		} else if time.Now().In(moscowTime).After(order.StorageUntil) {
-			currentOrderErr = fmt.Errorf("order %d storage period expired, order cannot be given", orderID)
+			currentOrderErr = fmt.Errorf("order %d: storage period expired (%s), cannot be given", orderID, order.StorageUntil.Format("2006-01-02 15:04"))
 		}
 
 		if currentOrderErr != nil {
@@ -108,20 +120,21 @@ func ReturnOrderFromClient(receiverID uint64, orderIDs []uint64) error {
 
 		order, exists := ordersByID[orderID]
 		if !exists {
-			currentOrderErr = fmt.Errorf("order %d not found", orderID)
+			currentOrderErr = fmt.Errorf("order %d: not found", orderID)
 		} else if order.ReceiverID != receiverID {
-			currentOrderErr = fmt.Errorf("order %d belongs to a different receiver (expected %d, got %d)", orderID, receiverID, order.ReceiverID)
+			currentOrderErr = fmt.Errorf("order %d: belongs to a different receiver (expected %d, got %d)", orderID, receiverID, order.ReceiverID)
 		} else if order.Status == StatusInStorage {
-			currentOrderErr = fmt.Errorf("order %d already in storage", orderID)
+			currentOrderErr = fmt.Errorf("order %d: already in storage, cannot be returned as client return", orderID)
 		} else {
+			//простая проверка на то, что заказ не был выдан больше 2 дней назад
 			currentTimeInMoscow := time.Now().In(moscowTime)
-			timeInStorage := currentTimeInMoscow.Sub(order.AcceptTime)
+			timeSinceGiven := currentTimeInMoscow.Sub(order.LastUpdateTime)
 
 			twoDaysLimit := 48 * time.Hour
 
-			if timeInStorage > twoDaysLimit {
-				currentOrderErr = fmt.Errorf("order %d has been in storage for too long (%.1f hours), cannot be given",
-					orderID, timeInStorage.Hours())
+			if timeSinceGiven > twoDaysLimit {
+				currentOrderErr = fmt.Errorf("order %d: too much time has passed (%.1f hours) since it was given to client. Return period expired (2-day limit)",
+					orderID, timeSinceGiven.Hours())
 			}
 		}
 
@@ -129,8 +142,16 @@ func ReturnOrderFromClient(receiverID uint64, orderIDs []uint64) error {
 			combinedErr = multierr.Append(combinedErr, currentOrderErr)
 			continue
 		}
+		// не уверен, что для возвратов именно такая логика верная, но судя по сообщениям в чате
+		// есть смысл хранить в ПВЗ только те товары, что мы можем в перспективе выдать клиенту
 		delete(ordersByID, orderID)
-		delete(ordersByReceiver[order.ReceiverID], orderID)
+		if _, exists := ordersByReceiver[order.ReceiverID]; exists {
+			delete(ordersByReceiver[order.ReceiverID], orderID)
+			if len(ordersByReceiver[order.ReceiverID]) == 0 {
+				delete(ordersByReceiver, order.ReceiverID)
+			}
+		}
+		// добавляем в возвраты, храним их в отдельном месте
 		returnedOrders[orderID] = struct{}{}
 	}
 
@@ -194,7 +215,6 @@ func GetOrdersSortedByTime(cmd *cobra.Command, args []string) error {
 	if len(args) > 0 {
 		return fmt.Errorf("this command does not accept arguments")
 	}
-	// выделяем доп память, потому что хотим воспользоваться стандартной функцией Sort для слайс
 	var allOrders []*Order
 	for _, order := range ordersByID {
 		allOrders = append(allOrders, order)
@@ -211,13 +231,7 @@ func GetOrdersSortedByTime(cmd *cobra.Command, args []string) error {
 	fmt.Println("All Orders (sorted by Last Update Time, newest first):")
 	fmt.Println("-----------------------------------------------------")
 	for _, order := range allOrders {
-		statusStr := "Unknown"
-		switch order.Status {
-		case StatusInStorage:
-			statusStr = "In Storage"
-		case StatusGivenToClient:
-			statusStr = "Given to Client"
-		}
+		statusStr := getStatusString(order.Status)
 		fmt.Printf("Order: %d | Receiver: %d | Status: %s | Last Update: %s\n",
 			order.OrderID,
 			order.ReceiverID,
@@ -232,35 +246,43 @@ func GetOrdersSortedByTime(cmd *cobra.Command, args []string) error {
 
 func ProcessOrders(cmd *cobra.Command, args []string) error {
 	if len(args) < 3 {
-		return fmt.Errorf("expected number of args - %d, got - %d", 2, len(args))
+		return fmt.Errorf("missing arguments. Usage: process-orders <ReceiverID> <action> <OrderID1> [OrderID2...]")
 	}
 	ReceiverID, err := strconv.ParseUint(args[0], 10, 64)
 	if err != nil {
-		return fmt.Errorf("wrong string conversion in ProcessOrders: %s", err)
+		return fmt.Errorf("invalid ReceiverID '%s': must be a number", args[0])
 	}
-	action := args[1]
+	action := strings.ToLower(args[1])
 	if action != "issue" && action != "return" {
-		return fmt.Errorf("action must be 'issue' or 'return'")
+		return fmt.Errorf("invalid action '%s': action must be 'issue' or 'return'", args[1])
 	}
 	orderIDs := make([]uint64, 0, len(args)-2)
 	for i := 2; i < len(args); i++ {
 		orderID, err := strconv.ParseUint(args[i], 10, 64)
 		if err != nil {
-			return fmt.Errorf("wrong string conversion in ProcessOrders: %s", err)
+			return fmt.Errorf("invalid OrderID '%s': must be a number", args[i])
 		}
 		orderIDs = append(orderIDs, orderID)
 	}
 
+	var processingErr error
+
 	if action == "issue" {
-		err := GiveOrdersToClient(ReceiverID, orderIDs)
-		if err != nil {
-			return fmt.Errorf("cannot issue orders: %s", err)
-		}
+		processingErr = GiveOrdersToClient(ReceiverID, orderIDs)
 	} else {
-		err := ReturnOrderFromClient(ReceiverID, orderIDs)
-		if err != nil {
-			return fmt.Errorf("cannot return orders: %s", err)
+		processingErr = ReturnOrderFromClient(ReceiverID, orderIDs)
+	}
+
+	if processingErr != nil {
+		multiErrors := multierr.Errors(processingErr)
+		for _, e := range multiErrors {
+			fmt.Fprintf(os.Stderr, "ERROR: %v\n", e)
 		}
+		return fmt.Errorf("one or more orders failed to process. See above for details")
+	}
+
+	for _, orderID := range orderIDs {
+		fmt.Printf("PROCESSED: %d\n", orderID)
 	}
 
 	return nil
@@ -268,12 +290,12 @@ func ProcessOrders(cmd *cobra.Command, args []string) error {
 
 func ListOrdersComm(cmd *cobra.Command, args []string) error {
 	if len(args) < 1 {
-		return fmt.Errorf("ReceiverID is required")
+		return fmt.Errorf("missing ReceiverID. Usage: list-orders <ReceiverID> [page] [limit]")
 	}
 
 	ReceiverID, err := strconv.ParseUint(args[0], 10, 64)
 	if err != nil {
-		return fmt.Errorf("invalid ReceiverID: %w", err)
+		return fmt.Errorf("invalid ReceiverID '%s': must be a number", args[0])
 	}
 
 	currentPage := uint64(1)
@@ -282,7 +304,7 @@ func ListOrdersComm(cmd *cobra.Command, args []string) error {
 	if len(args) > 1 {
 		parsedPage, err := strconv.ParseUint(args[1], 10, 64)
 		if err != nil {
-			return fmt.Errorf("invalid page number: %w", err)
+			return fmt.Errorf("invalid page number '%s': must be a number", args[1])
 		}
 		if parsedPage == 0 {
 			return fmt.Errorf("page number cannot be 0")
@@ -293,7 +315,7 @@ func ListOrdersComm(cmd *cobra.Command, args []string) error {
 	if len(args) > 2 {
 		parsedLimit, err := strconv.ParseUint(args[2], 10, 64)
 		if err != nil {
-			return fmt.Errorf("invalid limit: %w", err)
+			return fmt.Errorf("invalid limit '%s': must be a number", args[2])
 		}
 		if parsedLimit == 0 {
 			return fmt.Errorf("limit cannot be 0")
@@ -313,7 +335,7 @@ func ListOrdersComm(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(filteredOrders) == 0 {
-		fmt.Println("No orders found for this receiver.")
+		fmt.Println("No orders found for this receiver with the given criteria.")
 		fmt.Printf("TOTAL: %d\n", 0)
 		return nil
 	}
@@ -326,18 +348,12 @@ func ListOrdersComm(cmd *cobra.Command, args []string) error {
 	totalItems := uint64(len(filteredOrders))
 
 	if len(paginatedOrders) == 0 {
-		fmt.Println("No orders found on this page for the given receiver.")
+		fmt.Println("No orders found on this page for the given receiver and filters.")
 	} else {
 		fmt.Printf("Orders for Receiver ID %d:\n", ReceiverID)
 		fmt.Println("-----------------------------------------------------")
 		for _, order := range paginatedOrders {
-			statusStr := "Unknown"
-			switch order.Status {
-			case StatusInStorage:
-				statusStr = "In Storage"
-			case StatusGivenToClient:
-				statusStr = "Given to Client"
-			}
+			statusStr := getStatusString(order.Status)
 
 			fmt.Printf("ORDER: %d %d %s %s\n",
 				order.OrderID,
@@ -352,36 +368,42 @@ func ListOrdersComm(cmd *cobra.Command, args []string) error {
 
 	return nil
 }
+
 func AddComm(cmd *cobra.Command, args []string) error {
 	if len(args) != expectedArgCnt {
-		return fmt.Errorf("expected number of arguments - %d, got - %d", expectedArgCnt, len(args))
+		return fmt.Errorf("missing arguments. Usage: accept-order <ReceiverID> <OrderID> <StorageUntil>")
 	}
 	ReceiverID, err1 := strconv.ParseUint(args[0], 10, 64)
 	OrderID, err2 := strconv.ParseUint(args[1], 10, 64)
 
-	if err1 != nil || err2 != nil {
-		return fmt.Errorf("wrong string conversion")
+	if err1 != nil {
+		return fmt.Errorf("invalid ReceiverID '%s': must be a number", args[0])
+	}
+	if err2 != nil {
+		return fmt.Errorf("invalid OrderID '%s': must be a number", args[1])
 	}
 	StorageUntil := args[2]
 	err := Add(ReceiverID, OrderID, StorageUntil)
 	if err != nil {
-		return fmt.Errorf("cannot add to pvz: %s", err)
+		return fmt.Errorf("failed to accept order: %w", err)
 	}
+	fmt.Printf("ORDER_ACCEPTED: %d\n", OrderID)
 	return nil
-
 }
+
 func BackOrder(cmd *cobra.Command, args []string) error {
 	if len(args) != 1 {
-		return fmt.Errorf("expected number of args - %d, got - %d", 1, len(args))
+		return fmt.Errorf("missing argument. Usage: return-order <OrderID>")
 	}
 	orderID, err := strconv.ParseUint(args[0], 10, 64)
 	if err != nil {
-		return fmt.Errorf("wrong string conversation in BackOrder: %s", err)
+		return fmt.Errorf("invalid OrderID '%s': must be a number", args[0])
 	}
 	err2 := BackToDelivery(orderID)
 	if err2 != nil {
-		return fmt.Errorf("cannot back order: %s", err2)
+		return fmt.Errorf("failed to return order: %w", err2)
 	}
+	fmt.Printf("ORDER_RETURNED: %d\n", orderID)
 	return nil
 }
 
@@ -389,46 +411,46 @@ func main() {
 
 	rootCommand.AddCommand(
 		&cobra.Command{
-			Use:     "accept-order",
+			Use:     "accept-order <ReceiverID> <OrderID> <StorageUntil>",
 			Short:   "a",
-			Example: "",
+			Example: "pvz> accept-order 123 101 2025-12-31_15:00",
 			Args:    cobra.ExactArgs(3),
 			RunE:    AddComm,
 		},
 	)
 	rootCommand.AddCommand(
 		&cobra.Command{
-			Use:     "list-orders",
+			Use:     "list-orders <receiverID> [page] [limit]",
 			Short:   "lo",
-			Example: "",
+			Example: "pvz> list-orders 123\npvz> list-orders 456 1 5",
 			Args:    cobra.MinimumNArgs(1),
 			RunE:    ListOrdersComm,
 		},
 	)
 	rootCommand.AddCommand(
 		&cobra.Command{
-			Use:     "return-order",
+			Use:     "return-order <OrderID>",
 			Short:   "ro",
-			Example: "",
+			Example: "pvz> return-order 101",
 			Args:    cobra.ExactArgs(1),
 			RunE:    BackOrder,
 		},
 	)
 	rootCommand.AddCommand(
 		&cobra.Command{
-			Use:     "process-orders",
+			Use:     "process-orders <ReceiverID> <action> <OrderID1> [OrderID2...]",
 			Short:   "po",
-			Example: "",
+			Example: "pvz> process-orders 123 issue 101 102\npvz> process-orders 123 return 103",
 			Args:    cobra.MinimumNArgs(3),
 			RunE:    ProcessOrders,
 		},
 	)
 	rootCommand.AddCommand(
 		&cobra.Command{
-			Use:     "list-returns",
+			Use:     "list-returns [page] [limit]",
 			Short:   "lr",
-			Example: "",
-			Args:    cobra.NoArgs,
+			Example: "pvz> list-returns\npvz> list-returns 1 5",
+			Args:    cobra.MaximumNArgs(2),
 			RunE:    GetReturnedOrders,
 		},
 	)
@@ -436,7 +458,7 @@ func main() {
 		&cobra.Command{
 			Use:     "order-history",
 			Short:   "oh",
-			Example: "",
+			Example: "pvz> order-history",
 			Args:    cobra.NoArgs,
 			RunE:    GetOrdersSortedByTime,
 		},
@@ -459,7 +481,7 @@ func main() {
 		rootCommand.SetArgs(parts)
 
 		if err := rootCommand.Execute(); err != nil {
-			fmt.Fprintln(os.Stderr, "Command failed, Input Error: %s", err)
+			fmt.Fprintf(os.Stderr, "Command failed: %v\n", err)
 		}
 	}
 	if err := scanner.Err(); err != nil {
@@ -471,17 +493,17 @@ func main() {
 func Add(ReceiverID, OrderID uint64, storageUntilStr string) error {
 	storageUntil, err := time.ParseInLocation("2006-01-02_15:04", storageUntilStr, moscowTime)
 	if err != nil {
-		return fmt.Errorf("invalid time format, expected YYYY-MM-DD_HH:MM: %v", err)
+		return fmt.Errorf("invalid storage until time format for Order %d. Expected 2006-01-02_15:04, got '%s': %w", OrderID, storageUntilStr, err)
 	}
 
 	currentTimeInMoscow := time.Now().In(moscowTime)
-	// москвоское время ставим, иначе будут проблемы с поясами
 	if storageUntil.Before(currentTimeInMoscow) {
-		return fmt.Errorf("storage period already expired")
+		return fmt.Errorf("cannot accept order %d: storage period already expired. Current time: %s, Provided until: %s", OrderID, currentTimeInMoscow.Format("2006-01-02 15:04"), storageUntil.Format("2006-01-02 15:04"))
 	}
 	if _, exists := ordersByID[OrderID]; exists {
-		return fmt.Errorf("order %d already exists", OrderID)
+		return fmt.Errorf("cannot accept order %d: order with this ID already exists", OrderID)
 	}
+
 	ordersByID[OrderID] = &Order{
 		OrderID:        OrderID,
 		ReceiverID:     ReceiverID,
@@ -500,18 +522,17 @@ func Add(ReceiverID, OrderID uint64, storageUntilStr string) error {
 func BackToDelivery(OrderID uint64) error {
 	order, exists := ordersByID[OrderID]
 	if !exists {
-		return fmt.Errorf("order %d not found", OrderID)
+		return fmt.Errorf("cannot return order %d to delivery: order not found", OrderID)
 	}
 
 	if order.Status != StatusInStorage {
-		return fmt.Errorf("order %d cannot be returned (wrong status)", OrderID)
+		return fmt.Errorf("cannot return order %d to delivery: order is not in storage (current status: %s)", OrderID, getStatusString(order.Status))
 	}
 	if time.Now().In(moscowTime).Before(order.StorageUntil) {
-		return fmt.Errorf("order %d cannot be returned (storage period not expired)", OrderID)
+		return fmt.Errorf("cannot return order %d to delivery: storage period has not yet expired (until: %s)", OrderID, order.StorageUntil.Format("2006-01-02 15:04"))
 	}
 
 	delete(ordersByID, OrderID)
-
 	delete(ordersByReceiver[order.ReceiverID], OrderID)
 
 	return nil
@@ -521,7 +542,7 @@ func ReadOnlyPvz(ReceiverID uint64) string {
 	var output strings.Builder
 	orders := ordersByReceiver[ReceiverID]
 
-	for orderID, _ := range orders {
+	for orderID := range orders {
 		order := ordersByID[orderID]
 		if order.Status == StatusInStorage {
 			fmt.Fprintf(&output, "Order: %d, Time Limit: %s\n",
@@ -536,18 +557,9 @@ func ReadAll(ReceiverID uint64) string {
 	var output strings.Builder
 	orders := ordersByReceiver[ReceiverID]
 
-	for orderID, _ := range orders {
+	for orderID := range orders {
 		order := ordersByID[orderID]
-		statusStr := ""
-		switch order.Status {
-		case StatusInStorage:
-			statusStr = "In Storage"
-		case StatusGivenToClient:
-			statusStr = "Given to Client"
-		// по идее такого быть не может, но на всякий случай
-		default:
-			statusStr = "Unknown Status"
-		}
+		statusStr := getStatusString(order.Status)
 
 		fmt.Fprintf(&output, "Order: %d, Time Limit: %s, Status: %s\n",
 			order.OrderID,
