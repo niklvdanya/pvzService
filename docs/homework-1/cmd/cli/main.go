@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"go.uber.org/multierr"
 )
 
 // TODO: error handling, paging, Postgre - ??, interface segregation, type aliases
@@ -20,6 +21,7 @@ const (
 	expectedArgCnt              = 3
 	StatusInStorage OrderStatus = iota
 	StatusGivenToClient
+	StatusReturnedFromClient
 )
 
 // для синхронизации с московским временем
@@ -42,6 +44,106 @@ var rootCommand cobra.Command = cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {},
 }
 
+func GiveOrdersToClient(receiverID uint64, orderIDs []uint64) error {
+	var combinedErr error
+
+	for _, orderID := range orderIDs {
+		var currentOrderErr error
+
+		order, exists := ordersByID[orderID]
+		if !exists {
+			currentOrderErr = fmt.Errorf("order %d not found", orderID)
+		} else if order.ReceiverID != receiverID {
+			currentOrderErr = fmt.Errorf("order %d belongs to a different receiver (expected %d, got %d)", orderID, receiverID, order.ReceiverID)
+		} else if order.Status == StatusGivenToClient {
+			currentOrderErr = fmt.Errorf("order %d already given to client", orderID)
+		} else if time.Now().In(moscowTime).After(order.StorageUntil) {
+			currentOrderErr = fmt.Errorf("order %d storage period expired, order cannot be given", orderID)
+		}
+
+		if currentOrderErr != nil {
+			combinedErr = multierr.Append(combinedErr, currentOrderErr)
+			continue
+		}
+		// ничего кроме изменения статуса мы не делаем, ибо клиент может вернуть заказ, соответственно его еще надо хранить
+		order.Status = StatusGivenToClient
+	}
+
+	return combinedErr
+}
+
+func ReturnOrderFromClient(receiverID uint64, orderIDs []uint64) error {
+	var combinedErr error
+
+	for _, orderID := range orderIDs {
+		var currentOrderErr error
+
+		order, exists := ordersByID[orderID]
+		if !exists {
+			currentOrderErr = fmt.Errorf("order %d not found", orderID)
+		} else if order.ReceiverID != receiverID {
+			currentOrderErr = fmt.Errorf("order %d belongs to a different receiver (expected %d, got %d)", orderID, receiverID, order.ReceiverID)
+		} else if order.Status == StatusInStorage {
+			currentOrderErr = fmt.Errorf("order %d already in storage", orderID)
+		} else {
+			currentTimeInMoscow := time.Now().In(moscowTime)
+			timeInStorage := currentTimeInMoscow.Sub(order.AcceptTime)
+
+			twoDaysLimit := 48 * time.Hour
+
+			if timeInStorage > twoDaysLimit {
+				currentOrderErr = fmt.Errorf("order %d has been in storage for too long (%.1f hours), cannot be given",
+					orderID, timeInStorage.Hours())
+			}
+		}
+
+		if currentOrderErr != nil {
+			combinedErr = multierr.Append(combinedErr, currentOrderErr)
+			continue
+		}
+		// вот здесь не уверен, что должна быть именно такая логика
+		order.Status = StatusReturnedFromClient
+	}
+
+	return combinedErr
+}
+
+func ProcessOrders(cmd *cobra.Command, args []string) error {
+	if len(args) < 3 {
+		return fmt.Errorf("expected number of args - %d, got - %d", 2, len(args))
+	}
+	ReceiverID, err := strconv.ParseUint(args[0], 10, 64)
+	if err != nil {
+		return fmt.Errorf("wrong string conversion in ProcessOrders: %s", err)
+	}
+	action := args[1]
+	if action != "issue" && action != "return" {
+		return fmt.Errorf("action must be 'issue' or 'return'")
+	}
+	orderIDs := make([]uint64, 0, len(args)-2)
+	for i := 2; i < len(args); i++ {
+		orderID, err := strconv.ParseUint(args[i], 10, 64)
+		if err != nil {
+			return fmt.Errorf("wrong string conversion in ProcessOrders: %s", err)
+		}
+		orderIDs = append(orderIDs, orderID)
+	}
+
+	if action == "issue" {
+		err := GiveOrdersToClient(ReceiverID, orderIDs)
+		fmt.Println(orderIDs)
+		if err != nil {
+			return fmt.Errorf("cannot issue orders: %s", err)
+		}
+	} else {
+		err := ReturnOrderFromClient(ReceiverID, orderIDs)
+		if err != nil {
+			return fmt.Errorf("cannot return orders: %s", err)
+		}
+	}
+
+	return nil
+}
 func View(cmd *cobra.Command, args []string) error {
 	ReceiverID, err := strconv.ParseUint(args[0], 10, 64)
 	if err != nil {
@@ -50,6 +152,7 @@ func View(cmd *cobra.Command, args []string) error {
 	fmt.Println(ReadAll(ReceiverID))
 	return nil
 }
+
 func AddComm(cmd *cobra.Command, args []string) error {
 	if len(args) != expectedArgCnt {
 		return fmt.Errorf("expected number of arguments - %d, got - %d", expectedArgCnt, len(args))
@@ -82,11 +185,12 @@ func BackOrder(cmd *cobra.Command, args []string) error {
 	}
 	return nil
 }
+
 func main() {
 
 	rootCommand.AddCommand(
 		&cobra.Command{
-			Use:     "add",
+			Use:     "accept-order",
 			Short:   "a",
 			Example: "",
 			Args:    cobra.ExactArgs(3),
@@ -95,8 +199,8 @@ func main() {
 	)
 	rootCommand.AddCommand(
 		&cobra.Command{
-			Use:     "view",
-			Short:   "v",
+			Use:     "list-orders",
+			Short:   "lo",
 			Example: "",
 			Args:    cobra.ExactArgs(1),
 			RunE:    View,
@@ -104,13 +208,23 @@ func main() {
 	)
 	rootCommand.AddCommand(
 		&cobra.Command{
-			Use:     "backDel",
-			Short:   "bD",
+			Use:     "return-order",
+			Short:   "ro",
 			Example: "",
 			Args:    cobra.ExactArgs(1),
 			RunE:    BackOrder,
 		},
 	)
+	rootCommand.AddCommand(
+		&cobra.Command{
+			Use:     "process-orders",
+			Short:   "po",
+			Example: "",
+			Args:    cobra.MinimumNArgs(3),
+			RunE:    ProcessOrders,
+		},
+	)
+
 	fmt.Println("welcome")
 	scanner := bufio.NewScanner(os.Stdin)
 	for {
@@ -172,7 +286,7 @@ func BackToDelivery(OrderID uint64) error {
 		return fmt.Errorf("order %d not found", OrderID)
 	}
 
-	if order.Status != StatusInStorage {
+	if order.Status != StatusInStorage && order.Status != StatusReturnedFromClient {
 		return fmt.Errorf("order %d cannot be returned (wrong status)", OrderID)
 	}
 	if time.Now().In(moscowTime).Before(order.StorageUntil) {
@@ -213,6 +327,11 @@ func ReadAll(ReceiverID uint64) string {
 			statusStr = "In Storage"
 		case StatusGivenToClient:
 			statusStr = "Given to Client"
+		case StatusReturnedFromClient:
+			statusStr = "Returned from Client"
+		// по идее такого быть не может, но на всякий случай
+		default:
+			statusStr = "Unknown Status"
 		}
 
 		fmt.Fprintf(&output, "Order: %d, Time Limit: %s, Status: %s\n",
