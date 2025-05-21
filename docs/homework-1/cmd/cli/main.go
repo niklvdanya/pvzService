@@ -19,7 +19,6 @@ import (
 type OrderStatus uint8
 
 const (
-	expectedArgCnt              = 3
 	StatusInStorage OrderStatus = iota
 	StatusGivenToClient
 )
@@ -37,18 +36,25 @@ type Order struct {
 	LastUpdateTime time.Time
 }
 
+type ReturnedOrder struct {
+	OrderID    uint64
+	ReceiverID uint64
+	ReturnedAt time.Time
+}
+
 var (
 	ordersByID       map[uint64]*Order              = make(map[uint64]*Order)
 	ordersByReceiver map[uint64]map[uint64]struct{} = make(map[uint64]map[uint64]struct{})
-	//надо наверное чуть более подробную структуру завести для возвратов
-	returnedOrders map[uint64]struct{} = make(map[uint64]struct{})
+	returnedOrders   map[uint64]*ReturnedOrder      = make(map[uint64]*ReturnedOrder)
 )
 
-var rootCommand cobra.Command = cobra.Command{
+var rootCommand = &cobra.Command{
 	Short: "PVZ (Pickup Point) command-line interface",
 	Long: `A simple command-line interface for managing orders in a pickup point.
-	Type 'help' for a list of commands, or 'help <command>' for specific command usage.`,
-	Run: func(cmd *cobra.Command, args []string) {},
+    Type 'help' for a list of commands, or 'help <command>' for specific command usage.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		cmd.Help()
+	},
 }
 
 func paginate[T any](items []T, currentPage, itemsPerPage uint64) []T {
@@ -80,7 +86,6 @@ func getStatusString(status OrderStatus) string {
 		return "In Storage"
 	case StatusGivenToClient:
 		return "Given to Client"
-	// по сути в default никогда не зайдем, но добавил на всякий случай
 	default:
 		return "Unknown Status"
 	}
@@ -107,7 +112,6 @@ func GiveOrdersToClient(receiverID uint64, orderIDs []uint64) error {
 			combinedErr = multierr.Append(combinedErr, currentOrderErr)
 			continue
 		}
-		// ничего кроме изменения статуса мы не делаем, ибо клиент может вернуть заказ, соответственно его еще надо хранить
 		order.Status = StatusGivenToClient
 		order.LastUpdateTime = time.Now().In(moscowTime)
 	}
@@ -129,7 +133,6 @@ func ReturnOrderFromClient(receiverID uint64, orderIDs []uint64) error {
 		} else if order.Status == StatusInStorage {
 			currentOrderErr = fmt.Errorf("order %d: already in storage, cannot be returned as client return", orderID)
 		} else {
-			//простая проверка на то, что заказ не был выдан больше 2 дней назад
 			currentTimeInMoscow := time.Now().In(moscowTime)
 			timeSinceGiven := currentTimeInMoscow.Sub(order.LastUpdateTime)
 
@@ -145,8 +148,12 @@ func ReturnOrderFromClient(receiverID uint64, orderIDs []uint64) error {
 			combinedErr = multierr.Append(combinedErr, currentOrderErr)
 			continue
 		}
-		// не уверен, что для возвратов именно такая логика верная, но судя по сообщениям в чате
-		// есть смысл хранить в ПВЗ только те товары, что мы можем в перспективе выдать клиенту
+		returnedOrders[orderID] = &ReturnedOrder{
+			OrderID:    order.OrderID,
+			ReceiverID: order.ReceiverID,
+			ReturnedAt: time.Now().In(moscowTime),
+		}
+
 		delete(ordersByID, orderID)
 		if _, exists := ordersByReceiver[order.ReceiverID]; exists {
 			delete(ordersByReceiver[order.ReceiverID], orderID)
@@ -154,70 +161,46 @@ func ReturnOrderFromClient(receiverID uint64, orderIDs []uint64) error {
 				delete(ordersByReceiver, order.ReceiverID)
 			}
 		}
-		// добавляем в возвраты, храним их в отдельном месте
-		returnedOrders[orderID] = struct{}{}
 	}
 
 	return combinedErr
 }
 
 func GetReturnedOrders(cmd *cobra.Command, args []string) error {
-	currentPage := uint64(1)
-	itemsPerPage := uint64(10)
+	page, _ := cmd.Flags().GetUint64("page")
+	limit, _ := cmd.Flags().GetUint64("limit")
 
-	if len(args) > 0 {
-		parsedPage, err := strconv.ParseUint(args[0], 10, 64)
-		if err != nil {
-			return fmt.Errorf("invalid page number: %w", err)
-		}
-		if parsedPage == 0 {
-			return fmt.Errorf("page number cannot be 0")
-		}
-		currentPage = parsedPage
+	if page == 0 {
+		page = 1
+	}
+	if limit == 0 {
+		limit = 10
 	}
 
-	if len(args) > 1 {
-		parsedLimit, err := strconv.ParseUint(args[1], 10, 64)
-		if err != nil {
-			return fmt.Errorf("invalid limit: %w", err)
-		}
-		if parsedLimit == 0 {
-			return fmt.Errorf("limit cannot be 0")
-		}
-		itemsPerPage = parsedLimit
+	var returnedOrderList []*ReturnedOrder
+	for _, order := range returnedOrders {
+		returnedOrderList = append(returnedOrderList, order)
 	}
 
-	var returnedOrderIDs []uint64
-	for orderID := range returnedOrders {
-		returnedOrderIDs = append(returnedOrderIDs, orderID)
-	}
-
-	sort.Slice(returnedOrderIDs, func(i, j int) bool {
-		return returnedOrderIDs[i] < returnedOrderIDs[j]
+	sort.Slice(returnedOrderList, func(i, j int) bool {
+		return returnedOrderList[i].OrderID < returnedOrderList[j].OrderID
 	})
 
-	paginatedIDs := paginate(returnedOrderIDs, currentPage, itemsPerPage)
-
-	totalItems := uint64(len(returnedOrderIDs))
-
+	paginatedIDs := paginate(returnedOrderList, page, limit)
 	if len(paginatedIDs) == 0 {
 		fmt.Println("No returns found on this page or no returns in total.")
 	} else {
-		fmt.Println("List of Returned Orders:")
-		for _, orderID := range paginatedIDs {
-			fmt.Printf("RETURN: %d\n", orderID)
+		for _, order := range paginatedIDs {
+			fmt.Printf("RETURN: %d %d %s\n", order.OrderID, order.ReceiverID, order.ReturnedAt.Format("2006-01-02 15:04"))
 		}
 	}
 
-	fmt.Printf("PAGE: %d LIMIT: %d TOTAL: %d\n", currentPage, itemsPerPage, totalItems)
+	fmt.Printf("PAGE: %d LIMIT: %d\n", page, limit)
 
 	return nil
 }
 
 func GetOrdersSortedByTime(cmd *cobra.Command, args []string) error {
-	if len(args) > 0 {
-		return fmt.Errorf("this command does not accept arguments")
-	}
 	var allOrders []*Order
 	for _, order := range ordersByID {
 		allOrders = append(allOrders, order)
@@ -230,40 +213,44 @@ func GetOrdersSortedByTime(cmd *cobra.Command, args []string) error {
 	sort.Slice(allOrders, func(i, j int) bool {
 		return allOrders[i].LastUpdateTime.After(allOrders[j].LastUpdateTime)
 	})
-	fmt.Println(len(allOrders))
-	fmt.Println("All Orders (sorted by Last Update Time, newest first):")
-	fmt.Println("-----------------------------------------------------")
+
 	for _, order := range allOrders {
 		statusStr := getStatusString(order.Status)
-		fmt.Printf("Order: %d | Receiver: %d | Status: %s | Last Update: %s\n",
+		fmt.Printf("HISTORY: %d %s %s\n",
 			order.OrderID,
-			order.ReceiverID,
 			statusStr,
 			order.LastUpdateTime.Format("2006-01-02 15:04"),
 		)
 	}
-	fmt.Println("-----------------------------------------------------")
 
 	return nil
 }
 
 func ProcessOrders(cmd *cobra.Command, args []string) error {
-	if len(args) < 3 {
-		return fmt.Errorf("missing arguments. Usage: process-orders <ReceiverID> <action> <OrderID1> [OrderID2...]")
+	receiverID, _ := cmd.Flags().GetUint64("user-id")
+	action, _ := cmd.Flags().GetString("action")
+	orderIDsStr, _ := cmd.Flags().GetString("order-ids")
+
+	if receiverID == 0 {
+		return fmt.Errorf("missing --user-id")
 	}
-	ReceiverID, err := strconv.ParseUint(args[0], 10, 64)
-	if err != nil {
-		return fmt.Errorf("invalid ReceiverID '%s': must be a number", args[0])
+	if action == "" {
+		return fmt.Errorf("missing --action")
 	}
-	action := strings.ToLower(args[1])
+	if orderIDsStr == "" {
+		return fmt.Errorf("missing --order-ids")
+	}
+
 	if action != "issue" && action != "return" {
-		return fmt.Errorf("invalid action '%s': action must be 'issue' or 'return'", args[1])
+		return fmt.Errorf("invalid action '%s': action must be 'issue' or 'return'", action)
 	}
-	orderIDs := make([]uint64, 0, len(args)-2)
-	for i := 2; i < len(args); i++ {
-		orderID, err := strconv.ParseUint(args[i], 10, 64)
+
+	orderIDStrings := strings.Split(orderIDsStr, ",")
+	orderIDs := make([]uint64, 0, len(orderIDStrings))
+	for _, s := range orderIDStrings {
+		orderID, err := strconv.ParseUint(s, 10, 64)
 		if err != nil {
-			return fmt.Errorf("invalid OrderID '%s': must be a number", args[i])
+			return fmt.Errorf("invalid OrderID '%s': must be a number", s)
 		}
 		orderIDs = append(orderIDs, orderID)
 	}
@@ -271,17 +258,28 @@ func ProcessOrders(cmd *cobra.Command, args []string) error {
 	var processingErr error
 
 	if action == "issue" {
-		processingErr = GiveOrdersToClient(ReceiverID, orderIDs)
+		processingErr = GiveOrdersToClient(receiverID, orderIDs)
 	} else {
-		processingErr = ReturnOrderFromClient(ReceiverID, orderIDs)
+		processingErr = ReturnOrderFromClient(receiverID, orderIDs)
 	}
 
 	if processingErr != nil {
 		multiErrors := multierr.Errors(processingErr)
 		for _, e := range multiErrors {
+			if strings.HasPrefix(e.Error(), "order") {
+				parts := strings.SplitN(e.Error(), ": ", 2)
+				if len(parts) == 2 {
+					orderPart := strings.TrimPrefix(parts[0], "order ")
+					orderID, parseErr := strconv.ParseUint(orderPart, 10, 64)
+					if parseErr == nil {
+						fmt.Fprintf(os.Stderr, "Order %d %s\n", orderID, parts[1])
+						continue
+					}
+				}
+			}
 			fmt.Fprintf(os.Stderr, "ERROR: %v\n", e)
 		}
-		return fmt.Errorf("one or more orders failed to process. See above for details")
+		return fmt.Errorf("one or more orders failed to process")
 	}
 
 	for _, orderID := range orderIDs {
@@ -292,51 +290,29 @@ func ProcessOrders(cmd *cobra.Command, args []string) error {
 }
 
 func ListOrdersComm(cmd *cobra.Command, args []string) error {
-	if len(args) < 1 {
-		return fmt.Errorf("missing ReceiverID. Usage: list-orders <ReceiverID> [in-pvz] [page] [limit]")
+	receiverID, _ := cmd.Flags().GetUint64("user-id")
+	inPvz, _ := cmd.Flags().GetBool("in-pvz")
+	lastN, _ := cmd.Flags().GetUint64("last")
+	page, _ := cmd.Flags().GetUint64("page")
+	limit, _ := cmd.Flags().GetUint64("limit")
+
+	if receiverID == 0 {
+		return fmt.Errorf("missing --user-id")
 	}
 
-	ReceiverID, err := strconv.ParseUint(args[0], 10, 64)
-	if err != nil {
-		return fmt.Errorf("invalid ReceiverID '%s': must be a number", args[0])
+	if lastN > 0 && (page > 0 || limit > 0) {
+		return fmt.Errorf("cannot use --last with --page or --limit")
 	}
 
-	inPvz := false
-	remainingArgs := []string{}
-
-	if len(args) > 1 && args[1] == "in-pvz" {
-		inPvz = true
-		remainingArgs = args[2:]
-	} else {
-		remainingArgs = args[1:]
+	if page == 0 {
+		page = 1
 	}
-
-	currentPage := uint64(1)
-	itemsPerPage := uint64(10)
-	if len(remainingArgs) > 0 {
-		parsedPage, err := strconv.ParseUint(remainingArgs[0], 10, 64)
-		if err != nil {
-			return fmt.Errorf("invalid page number '%s': must be a number", remainingArgs[0])
-		}
-		if parsedPage == 0 {
-			return fmt.Errorf("page number cannot be 0")
-		}
-		currentPage = parsedPage
-	}
-
-	if len(remainingArgs) > 1 {
-		parsedLimit, err := strconv.ParseUint(remainingArgs[1], 10, 64)
-		if err != nil {
-			return fmt.Errorf("invalid limit '%s': must be a number", remainingArgs[1])
-		}
-		if parsedLimit == 0 {
-			return fmt.Errorf("limit cannot be 0")
-		}
-		itemsPerPage = parsedLimit
+	if limit == 0 {
+		limit = 10
 	}
 
 	var filteredOrders []*Order
-	if userOrders, exists := ordersByReceiver[ReceiverID]; exists {
+	if userOrders, exists := ordersByReceiver[receiverID]; exists {
 		for orderID := range userOrders {
 			order := ordersByID[orderID]
 			if order == nil {
@@ -349,35 +325,36 @@ func ListOrdersComm(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	if len(filteredOrders) == 0 {
-		fmt.Println("No orders found for this receiver with the given criteria.")
-		fmt.Printf("TOTAL: %d\n", 0)
-		return nil
-	}
-
 	sort.Slice(filteredOrders, func(i, j int) bool {
 		return filteredOrders[i].OrderID < filteredOrders[j].OrderID
 	})
-	paginatedOrders := paginate(filteredOrders, currentPage, itemsPerPage)
 
+	var paginatedOrders []*Order
 	totalItems := uint64(len(filteredOrders))
 
-	if len(paginatedOrders) == 0 {
-		fmt.Println("No orders found on this page for the given receiver and filters.")
+	if lastN > 0 {
+		if totalItems > lastN {
+			paginatedOrders = filteredOrders[totalItems-lastN:]
+		} else {
+			paginatedOrders = filteredOrders
+		}
 	} else {
-		fmt.Printf("Orders for Receiver ID %d:\n", ReceiverID)
-		fmt.Println("-----------------------------------------------------")
+		paginatedOrders = paginate(filteredOrders, page, limit)
+	}
+
+	if len(paginatedOrders) == 0 {
+		fmt.Println("No orders found for this receiver with the given criteria.")
+	} else {
 		for _, order := range paginatedOrders {
 			statusStr := getStatusString(order.Status)
 
-			fmt.Printf("ORDER: %d %d %s %s\n",
+			fmt.Printf("Order: %d Reciever: %d Status: %s Storage Limit: %s\n",
 				order.OrderID,
 				order.ReceiverID,
 				statusStr,
 				order.StorageUntil.Format("2006-01-02_15:04"),
 			)
 		}
-		fmt.Println("-----------------------------------------------------")
 	}
 	fmt.Printf("TOTAL: %d\n", totalItems)
 
@@ -385,99 +362,107 @@ func ListOrdersComm(cmd *cobra.Command, args []string) error {
 }
 
 func AddComm(cmd *cobra.Command, args []string) error {
-	if len(args) != expectedArgCnt {
-		return fmt.Errorf("missing arguments. Usage: accept-order <ReceiverID> <OrderID> <StorageUntil>")
-	}
-	ReceiverID, err1 := strconv.ParseUint(args[0], 10, 64)
-	OrderID, err2 := strconv.ParseUint(args[1], 10, 64)
+	receiverID, _ := cmd.Flags().GetUint64("user-id")
+	orderID, _ := cmd.Flags().GetUint64("order-id")
+	storageUntilStr, _ := cmd.Flags().GetString("expires")
 
-	if err1 != nil {
-		return fmt.Errorf("invalid ReceiverID '%s': must be a number", args[0])
+	if receiverID == 0 {
+		return fmt.Errorf("missing --user-id")
 	}
-	if err2 != nil {
-		return fmt.Errorf("invalid OrderID '%s': must be a number", args[1])
+	if orderID == 0 {
+		return fmt.Errorf("missing --order-id")
 	}
-	StorageUntil := args[2]
-	err := Add(ReceiverID, OrderID, StorageUntil)
+	if storageUntilStr == "" {
+		return fmt.Errorf("missing --expires")
+	}
+
+	err := Add(receiverID, orderID, storageUntilStr)
 	if err != nil {
 		return fmt.Errorf("failed to accept order: %w", err)
 	}
-	fmt.Printf("ORDER_ACCEPTED: %d\n", OrderID)
+	fmt.Printf("ORDER_ACCEPTED: %d\n", orderID)
 	return nil
 }
 
 func BackOrder(cmd *cobra.Command, args []string) error {
-	if len(args) != 1 {
-		return fmt.Errorf("missing argument. Usage: return-order <OrderID>")
+	orderID, _ := cmd.Flags().GetUint64("order-id")
+
+	if orderID == 0 {
+		return fmt.Errorf("missing --order-id")
 	}
-	orderID, err := strconv.ParseUint(args[0], 10, 64)
+
+	err := BackToDelivery(orderID)
 	if err != nil {
-		return fmt.Errorf("invalid OrderID '%s': must be a number", args[0])
-	}
-	err2 := BackToDelivery(orderID)
-	if err2 != nil {
-		return fmt.Errorf("failed to return order: %w", err2)
+		return fmt.Errorf("failed to return order: %w", err)
 	}
 	fmt.Printf("ORDER_RETURNED: %d\n", orderID)
 	return nil
 }
 
 func main() {
-	// наверное есть смысл реализовать консольку через флаги, но я реализовал как в воркшопе
-	rootCommand.AddCommand(
-		&cobra.Command{
-			Use:     "accept-order <ReceiverID> <OrderID> <YYYY-MM-DD_HH:MM>",
-			Short:   "Accepts an order from a courier.",
-			Example: "pvz> accept-order 123 101 2025-12-31_15:00",
-			Args:    cobra.ExactArgs(3),
-			RunE:    AddComm,
-		},
-	)
-	rootCommand.AddCommand(
-		&cobra.Command{
-			Use:     "list-orders <ReceiverID> [in-pvz] [page] [limit]",
-			Short:   "Lists orders for a specific receiver.",
-			Example: "pvz> list-orders 123\npvz> list-orders 456 1 5",
-			Args:    cobra.MinimumNArgs(1),
-			RunE:    ListOrdersComm,
-		},
-	)
-	rootCommand.AddCommand(
-		&cobra.Command{
-			Use:     "return-order <OrderID>",
-			Short:   "Returns an order to the courier.",
-			Example: "pvz> return-order 101",
-			Args:    cobra.ExactArgs(1),
-			RunE:    BackOrder,
-		},
-	)
-	rootCommand.AddCommand(
-		&cobra.Command{
-			Use:     "process-orders <ReceiverID> <action> <OrderID1> [OrderID2...]",
-			Short:   "Issues orders to a client or accepts returns from a client.",
-			Example: "pvz> process-orders 123 issue 101 102\npvz> process-orders 123 return 103",
-			Args:    cobra.MinimumNArgs(3),
-			RunE:    ProcessOrders,
-		},
-	)
-	rootCommand.AddCommand(
-		&cobra.Command{
-			Use:     "list-returns [page] [limit]",
-			Short:   "Lists all returned orders.",
-			Example: "pvz> list-returns\npvz> list-returns 1 5",
-			Args:    cobra.MaximumNArgs(2),
-			RunE:    GetReturnedOrders,
-		},
-	)
-	rootCommand.AddCommand(
-		&cobra.Command{
-			Use:     "order-history",
-			Short:   "Shows the history of all order status changes (sorted by last update time).",
-			Example: "pvz> order-history",
-			Args:    cobra.NoArgs,
-			RunE:    GetOrdersSortedByTime,
-		},
-	)
+	acceptOrderCmd := &cobra.Command{
+		Use:   "accept-order",
+		Short: "Accepts an order from a courier.",
+		RunE:  AddComm,
+	}
+	acceptOrderCmd.Flags().Uint64P("order-id", "", 0, "ID of the order")
+	acceptOrderCmd.Flags().Uint64P("user-id", "", 0, "ID of the receiver")
+	acceptOrderCmd.Flags().StringP("expires", "", "", "Storage expiration date (YYYY-MM-DD_HH:MM)")
+	acceptOrderCmd.MarkFlagRequired("order-id")
+	acceptOrderCmd.MarkFlagRequired("user-id")
+	acceptOrderCmd.MarkFlagRequired("expires")
+	rootCommand.AddCommand(acceptOrderCmd)
+
+	returnOrderCmd := &cobra.Command{
+		Use:   "return-order",
+		Short: "Returns an order to the courier.",
+		RunE:  BackOrder,
+	}
+	returnOrderCmd.Flags().Uint64P("order-id", "", 0, "ID of the order to return")
+	returnOrderCmd.MarkFlagRequired("order-id")
+	rootCommand.AddCommand(returnOrderCmd)
+
+	processOrdersCmd := &cobra.Command{
+		Use:   "process-orders",
+		Short: "Issues orders to a client or accepts returns from a client.",
+		RunE:  ProcessOrders,
+	}
+	processOrdersCmd.Flags().Uint64P("user-id", "", 0, "ID of the receiver")
+	processOrdersCmd.Flags().StringP("action", "", "", "Action to perform: 'issue' or 'return'")
+	processOrdersCmd.Flags().StringP("order-ids", "", "", "Comma-separated list of order IDs")
+	processOrdersCmd.MarkFlagRequired("user-id")
+	processOrdersCmd.MarkFlagRequired("action")
+	processOrdersCmd.MarkFlagRequired("order-ids")
+	rootCommand.AddCommand(processOrdersCmd)
+
+	listOrdersCmd := &cobra.Command{
+		Use:   "list-orders",
+		Short: "Lists orders for a specific receiver.",
+		RunE:  ListOrdersComm,
+	}
+	listOrdersCmd.Flags().Uint64P("user-id", "", 0, "ID of the receiver")
+	listOrdersCmd.Flags().BoolP("in-pvz", "", false, "Filter for orders currently in PVZ storage")
+	listOrdersCmd.Flags().Uint64P("last", "", 0, "Show last N orders")
+	listOrdersCmd.Flags().Uint64P("page", "", 0, "Page number for pagination")
+	listOrdersCmd.Flags().Uint64P("limit", "", 0, "Items per page for pagination")
+	listOrdersCmd.MarkFlagRequired("user-id")
+	rootCommand.AddCommand(listOrdersCmd)
+
+	listReturnsCmd := &cobra.Command{
+		Use:   "list-returns",
+		Short: "Lists all returned orders.",
+		RunE:  GetReturnedOrders,
+	}
+	listReturnsCmd.Flags().Uint64P("page", "", 0, "Page number for pagination")
+	listReturnsCmd.Flags().Uint64P("limit", "", 0, "Items per page for pagination")
+	rootCommand.AddCommand(listReturnsCmd)
+
+	orderHistoryCmd := &cobra.Command{
+		Use:   "order-history",
+		Short: "Shows the history of all order status changes (sorted by last update time).",
+		RunE:  GetOrdersSortedByTime,
+	}
+	rootCommand.AddCommand(orderHistoryCmd)
 
 	rootCommand.AddCommand(&cobra.Command{
 		Use:   "exit",
@@ -501,15 +486,13 @@ func main() {
 			continue
 		}
 
-		parts := strings.Fields(line)
-		rootCommand.SetArgs(parts)
-
+		rootCommand.SetArgs(strings.Fields(line))
 		if err := rootCommand.Execute(); err != nil {
-			fmt.Fprintf(os.Stderr, "Command failed: %v\n", err)
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		log.Fatalf("Error: %s", err)
+		log.Fatalf("Error reading from stdin: %s", err)
 	}
 
 }
@@ -560,35 +543,4 @@ func BackToDelivery(OrderID uint64) error {
 	delete(ordersByReceiver[order.ReceiverID], OrderID)
 
 	return nil
-}
-
-func ReadOnlyPvz(ReceiverID uint64) string {
-	var output strings.Builder
-	orders := ordersByReceiver[ReceiverID]
-
-	for orderID := range orders {
-		order := ordersByID[orderID]
-		if order.Status == StatusInStorage {
-			fmt.Fprintf(&output, "Order: %d, Time Limit: %s\n",
-				order.OrderID,
-				order.StorageUntil.Format("2006-01-02_15:04"))
-		}
-	}
-	return output.String()
-}
-
-func ReadAll(ReceiverID uint64) string {
-	var output strings.Builder
-	orders := ordersByReceiver[ReceiverID]
-
-	for orderID := range orders {
-		order := ordersByID[orderID]
-		statusStr := getStatusString(order.Status)
-
-		fmt.Fprintf(&output, "Order: %d, Time Limit: %s, Status: %s\n",
-			order.OrderID,
-			order.StorageUntil.Format("2006-01-02_15:04"),
-			statusStr)
-	}
-	return output.String()
 }
