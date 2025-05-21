@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -21,7 +22,6 @@ const (
 	expectedArgCnt              = 3
 	StatusInStorage OrderStatus = iota
 	StatusGivenToClient
-	StatusReturnedFromClient
 )
 
 // добавил часы и минуты, чтобы было легче отлаживать работу функций, где есть проверка с time.Now()
@@ -29,11 +29,12 @@ const (
 var moscowTime, _ = time.LoadLocation("Europe/Moscow")
 
 type Order struct {
-	OrderID      uint64
-	ReceiverID   uint64
-	StorageUntil time.Time
-	Status       OrderStatus
-	AcceptTime   time.Time
+	OrderID        uint64
+	ReceiverID     uint64
+	StorageUntil   time.Time
+	Status         OrderStatus
+	AcceptTime     time.Time
+	LastUpdateTime time.Time
 }
 
 var (
@@ -70,6 +71,7 @@ func GiveOrdersToClient(receiverID uint64, orderIDs []uint64) error {
 		}
 		// ничего кроме изменения статуса мы не делаем, ибо клиент может вернуть заказ, соответственно его еще надо хранить
 		order.Status = StatusGivenToClient
+		order.LastUpdateTime = time.Now().In(moscowTime)
 	}
 
 	return combinedErr
@@ -111,6 +113,7 @@ func ReturnOrderFromClient(receiverID uint64, orderIDs []uint64) error {
 
 	return combinedErr
 }
+
 func GetReturnedOrders(cmd *cobra.Command, args []string) error {
 	if len(args) > 0 {
 		return fmt.Errorf("expected number of args - %d, got - %d", 0, len(args))
@@ -120,6 +123,47 @@ func GetReturnedOrders(cmd *cobra.Command, args []string) error {
 	}
 	return nil
 }
+
+func GetOrdersSortedByTime(cmd *cobra.Command, args []string) error {
+	if len(args) > 0 {
+		return fmt.Errorf("this command does not accept arguments")
+	}
+	// выделяем доп память, потому что хотим воспользоваться стандартной функцией Sort для слайс
+	var allOrders []*Order
+	for _, order := range ordersByID {
+		allOrders = append(allOrders, order)
+	}
+
+	if len(allOrders) == 0 {
+		fmt.Println("No orders in the system.")
+		return nil
+	}
+	sort.Slice(allOrders, func(i, j int) bool {
+		return allOrders[i].LastUpdateTime.After(allOrders[j].LastUpdateTime)
+	})
+	fmt.Println(len(allOrders))
+	fmt.Println("All Orders (sorted by Last Update Time, newest first):")
+	fmt.Println("-----------------------------------------------------")
+	for _, order := range allOrders {
+		statusStr := "Unknown"
+		switch order.Status {
+		case StatusInStorage:
+			statusStr = "In Storage"
+		case StatusGivenToClient:
+			statusStr = "Given to Client"
+		}
+		fmt.Printf("Order: %d | Receiver: %d | Status: %s | Last Update: %s\n",
+			order.OrderID,
+			order.ReceiverID,
+			statusStr,
+			order.LastUpdateTime.Format("2006-01-02 15:04"),
+		)
+	}
+	fmt.Println("-----------------------------------------------------")
+
+	return nil
+}
+
 func ProcessOrders(cmd *cobra.Command, args []string) error {
 	if len(args) < 3 {
 		return fmt.Errorf("expected number of args - %d, got - %d", 2, len(args))
@@ -155,6 +199,7 @@ func ProcessOrders(cmd *cobra.Command, args []string) error {
 
 	return nil
 }
+
 func View(cmd *cobra.Command, args []string) error {
 	ReceiverID, err := strconv.ParseUint(args[0], 10, 64)
 	if err != nil {
@@ -244,6 +289,15 @@ func main() {
 			RunE:    GetReturnedOrders,
 		},
 	)
+	rootCommand.AddCommand(
+		&cobra.Command{
+			Use:     "order-history",
+			Short:   "oh",
+			Example: "",
+			Args:    cobra.NoArgs,
+			RunE:    GetOrdersSortedByTime,
+		},
+	)
 	fmt.Println("welcome")
 	scanner := bufio.NewScanner(os.Stdin)
 	for {
@@ -286,11 +340,12 @@ func Add(ReceiverID, OrderID uint64, storageUntilStr string) error {
 		return fmt.Errorf("order %d already exists", OrderID)
 	}
 	ordersByID[OrderID] = &Order{
-		OrderID:      OrderID,
-		ReceiverID:   ReceiverID,
-		StorageUntil: storageUntil,
-		Status:       StatusInStorage,
-		AcceptTime:   currentTimeInMoscow,
+		OrderID:        OrderID,
+		ReceiverID:     ReceiverID,
+		StorageUntil:   storageUntil,
+		Status:         StatusInStorage,
+		AcceptTime:     currentTimeInMoscow,
+		LastUpdateTime: currentTimeInMoscow,
 	}
 	if _, exists := ordersByReceiver[ReceiverID]; !exists {
 		ordersByReceiver[ReceiverID] = make(map[uint64]struct{})
@@ -305,7 +360,7 @@ func BackToDelivery(OrderID uint64) error {
 		return fmt.Errorf("order %d not found", OrderID)
 	}
 
-	if order.Status != StatusInStorage && order.Status != StatusReturnedFromClient {
+	if order.Status != StatusInStorage {
 		return fmt.Errorf("order %d cannot be returned (wrong status)", OrderID)
 	}
 	if time.Now().In(moscowTime).Before(order.StorageUntil) {
@@ -346,8 +401,6 @@ func ReadAll(ReceiverID uint64) string {
 			statusStr = "In Storage"
 		case StatusGivenToClient:
 			statusStr = "Given to Client"
-		case StatusReturnedFromClient:
-			statusStr = "Returned from Client"
 		// по идее такого быть не может, но на всякий случай
 		default:
 			statusStr = "Unknown Status"
