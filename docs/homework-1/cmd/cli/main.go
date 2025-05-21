@@ -48,6 +48,29 @@ var rootCommand cobra.Command = cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {},
 }
 
+func paginate[T any](items []T, currentPage, itemsPerPage uint64) []T {
+	totalItems := uint64(len(items))
+
+	if itemsPerPage == 0 {
+		return []T{}
+	}
+	if currentPage == 0 {
+		currentPage = 1
+	}
+
+	startIndex := (currentPage - 1) * itemsPerPage
+	endIndex := startIndex + itemsPerPage
+
+	if startIndex >= totalItems {
+		return []T{}
+	}
+	if endIndex > totalItems {
+		endIndex = totalItems
+	}
+
+	return items[startIndex:endIndex]
+}
+
 func GiveOrdersToClient(receiverID uint64, orderIDs []uint64) error {
 	var combinedErr error
 
@@ -115,12 +138,55 @@ func ReturnOrderFromClient(receiverID uint64, orderIDs []uint64) error {
 }
 
 func GetReturnedOrders(cmd *cobra.Command, args []string) error {
+	currentPage := uint64(1)
+	itemsPerPage := uint64(10)
+
 	if len(args) > 0 {
-		return fmt.Errorf("expected number of args - %d, got - %d", 0, len(args))
+		parsedPage, err := strconv.ParseUint(args[0], 10, 64)
+		if err != nil {
+			return fmt.Errorf("invalid page number: %w", err)
+		}
+		if parsedPage == 0 {
+			return fmt.Errorf("page number cannot be 0")
+		}
+		currentPage = parsedPage
 	}
-	for orderId, _ := range returnedOrders {
-		fmt.Println(orderId)
+
+	if len(args) > 1 {
+		parsedLimit, err := strconv.ParseUint(args[1], 10, 64)
+		if err != nil {
+			return fmt.Errorf("invalid limit: %w", err)
+		}
+		if parsedLimit == 0 {
+			return fmt.Errorf("limit cannot be 0")
+		}
+		itemsPerPage = parsedLimit
 	}
+
+	var returnedOrderIDs []uint64
+	for orderID := range returnedOrders {
+		returnedOrderIDs = append(returnedOrderIDs, orderID)
+	}
+
+	sort.Slice(returnedOrderIDs, func(i, j int) bool {
+		return returnedOrderIDs[i] < returnedOrderIDs[j]
+	})
+
+	paginatedIDs := paginate(returnedOrderIDs, currentPage, itemsPerPage)
+
+	totalItems := uint64(len(returnedOrderIDs))
+
+	if len(paginatedIDs) == 0 {
+		fmt.Println("No returns found on this page or no returns in total.")
+	} else {
+		fmt.Println("List of Returned Orders:")
+		for _, orderID := range paginatedIDs {
+			fmt.Printf("RETURN: %d\n", orderID)
+		}
+	}
+
+	fmt.Printf("PAGE: %d LIMIT: %d TOTAL: %d\n", currentPage, itemsPerPage, totalItems)
+
 	return nil
 }
 
@@ -200,15 +266,92 @@ func ProcessOrders(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func View(cmd *cobra.Command, args []string) error {
+func ListOrdersComm(cmd *cobra.Command, args []string) error {
+	if len(args) < 1 {
+		return fmt.Errorf("ReceiverID is required")
+	}
+
 	ReceiverID, err := strconv.ParseUint(args[0], 10, 64)
 	if err != nil {
-		return fmt.Errorf("%s", err)
+		return fmt.Errorf("invalid ReceiverID: %w", err)
 	}
-	fmt.Println(ReadAll(ReceiverID))
+
+	currentPage := uint64(1)
+	itemsPerPage := uint64(10)
+
+	if len(args) > 1 {
+		parsedPage, err := strconv.ParseUint(args[1], 10, 64)
+		if err != nil {
+			return fmt.Errorf("invalid page number: %w", err)
+		}
+		if parsedPage == 0 {
+			return fmt.Errorf("page number cannot be 0")
+		}
+		currentPage = parsedPage
+	}
+
+	if len(args) > 2 {
+		parsedLimit, err := strconv.ParseUint(args[2], 10, 64)
+		if err != nil {
+			return fmt.Errorf("invalid limit: %w", err)
+		}
+		if parsedLimit == 0 {
+			return fmt.Errorf("limit cannot be 0")
+		}
+		itemsPerPage = parsedLimit
+	}
+
+	var filteredOrders []*Order
+	if userOrders, exists := ordersByReceiver[ReceiverID]; exists {
+		for orderID := range userOrders {
+			order := ordersByID[orderID]
+			if order == nil {
+				continue
+			}
+			filteredOrders = append(filteredOrders, order)
+		}
+	}
+
+	if len(filteredOrders) == 0 {
+		fmt.Println("No orders found for this receiver.")
+		fmt.Printf("TOTAL: %d\n", 0)
+		return nil
+	}
+
+	sort.Slice(filteredOrders, func(i, j int) bool {
+		return filteredOrders[i].OrderID < filteredOrders[j].OrderID
+	})
+	paginatedOrders := paginate(filteredOrders, currentPage, itemsPerPage)
+
+	totalItems := uint64(len(filteredOrders))
+
+	if len(paginatedOrders) == 0 {
+		fmt.Println("No orders found on this page for the given receiver.")
+	} else {
+		fmt.Printf("Orders for Receiver ID %d:\n", ReceiverID)
+		fmt.Println("-----------------------------------------------------")
+		for _, order := range paginatedOrders {
+			statusStr := "Unknown"
+			switch order.Status {
+			case StatusInStorage:
+				statusStr = "In Storage"
+			case StatusGivenToClient:
+				statusStr = "Given to Client"
+			}
+
+			fmt.Printf("ORDER: %d %d %s %s\n",
+				order.OrderID,
+				order.ReceiverID,
+				statusStr,
+				order.StorageUntil.Format("2006-01-02_15:04"),
+			)
+		}
+		fmt.Println("-----------------------------------------------------")
+	}
+	fmt.Printf("TOTAL: %d\n", totalItems)
+
 	return nil
 }
-
 func AddComm(cmd *cobra.Command, args []string) error {
 	if len(args) != expectedArgCnt {
 		return fmt.Errorf("expected number of arguments - %d, got - %d", expectedArgCnt, len(args))
@@ -258,8 +401,8 @@ func main() {
 			Use:     "list-orders",
 			Short:   "lo",
 			Example: "",
-			Args:    cobra.ExactArgs(1),
-			RunE:    View,
+			Args:    cobra.MinimumNArgs(1),
+			RunE:    ListOrdersComm,
 		},
 	)
 	rootCommand.AddCommand(
