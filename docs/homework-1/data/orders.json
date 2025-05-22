@@ -1,0 +1,53 @@
+{
+  "orders": {
+    "1": {
+      "OrderID": 1,
+      "ReceiverID": 1,
+      "StorageUntil": "2025-10-01T12:00:00+03:00",
+      "Status": 2,
+      "AcceptTime": "2025-05-22T21:26:37.8501913+03:00",
+      "LastUpdateTime": "2025-05-22T21:55:39.134897739+03:00"
+    },
+    "2": {
+      "OrderID": 2,
+      "ReceiverID": 1,
+      "StorageUntil": "2025-10-01T12:00:00+03:00",
+      "Status": 0,
+      "AcceptTime": "2025-05-22T21:26:39.526187662+03:00",
+      "LastUpdateTime": "2025-05-22T21:26:39.526187662+03:00"
+    },
+    "3": {
+      "OrderID": 3,
+      "ReceiverID": 1,
+      "StorageUntil": "2025-10-01T12:00:00+03:00",
+      "Status": 0,
+      "AcceptTime": "2025-05-22T21:26:41.510970188+03:00",
+      "LastUpdateTime": "2025-05-22T21:26:41.510970188+03:00"
+    },
+    "4": {
+      "OrderID": 4,
+      "ReceiverID": 1,
+      "StorageUntil": "2025-10-01T12:00:00+03:00",
+      "Status": 0,
+      "AcceptTime": "2025-05-22T21:26:42.875198891+03:00",
+      "LastUpdateTime": "2025-05-22T21:26:42.875198891+03:00"
+    },
+    "5": {
+      "OrderID": 5,
+      "ReceiverID": 1,
+      "StorageUntil": "2025-10-01T12:00:00+03:00",
+      "Status": 0,
+      "AcceptTime": "2025-05-22T21:26:44.234990317+03:00",
+      "LastUpdateTime": "2025-05-22T21:26:44.234990317+03:00"
+    }
+  },
+  "orders_by_receiver": {
+    "1": {
+      "1": {},
+      "2": {},
+      "3": {},
+      "4": {},
+      "5": {}
+    }
+  }
+}

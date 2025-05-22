@@ -1,0 +1,9 @@
+{
+  "returned_orders": {
+    "1": {
+      "OrderID": 1,
+      "ReceiverID": 1,
+      "ReturnedAt": "2025-05-22T21:55:39.134897739+03:00"
+    }
+  }
+}

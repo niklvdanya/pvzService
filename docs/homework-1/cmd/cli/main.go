@@ -8,7 +8,8 @@ import (
 	"strings"
 
 	"gitlab.ozon.dev/safariproxd/homework/docs/homework-1/internal/adapter/cli"
-	"gitlab.ozon.dev/safariproxd/homework/docs/homework-1/internal/adapter/inmemory"
+	//"gitlab.ozon.dev/safariproxd/homework/docs/homework-1/internal/adapter/inmemory"
+	"gitlab.ozon.dev/safariproxd/homework/docs/homework-1/internal/adapter/file"
 	"gitlab.ozon.dev/safariproxd/homework/docs/homework-1/internal/app"
 
 	"github.com/spf13/cobra"
@@ -25,10 +26,26 @@ var rootCmd = &cobra.Command{
 	SilenceErrors: true,
 }
 
-func main() {
-	orderRepo := inmemory.NewInMemoryOrderRepository()
-	returnedOrderRepo := inmemory.NewInMemoryReturnedOrderRepository()
+// немного о структуре кода:
 
+// в cli/cli.go основная логика работы консольки
+// в app/pvz.go основная логика работы с заказами - те самые 6 команд из таски
+// cli и PvzService общаются при помощи интерфейса - port.OrderService
+
+// в adapter/inmemory и adapter/file расположены конкретные реализации интерфейса OrderRepository, которые использует pvzService
+// по сути они отвечают за хранение данных
+
+// эти реализации используют модели, объявленные в domain/models.go
+
+func main() {
+	orderRepo, err := file.NewFileOrderRepository()
+	if err != nil {
+		log.Fatalf("Failed to initialize file order repository: %v", err)
+	}
+	returnedOrderRepo, err := file.NewFileReturnedOrderRepository()
+	if err != nil {
+		log.Fatalf("Failed to initialize file returned order repository: %v", err)
+	}
 	pvzService := app.NewPVZService(orderRepo, returnedOrderRepo)
 
 	cliAdapter := cli.NewCLIAdapter(pvzService)
