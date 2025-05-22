@@ -11,5 +11,6 @@ var (
 	ErrAlreadyInStorage           = errors.New("order is already in storage")
 	ErrReturnPeriodExpired        = errors.New("return period expired")
 	ErrStorageNotExpired          = errors.New("storage period not expired yet")
+	ErrUnavaliableReturnedOrder   = errors.New("returned orders are not available")
 	// надо добавить еще
 )

@@ -83,7 +83,11 @@ func (s *PVZService) IssueOrdersToClient(receiverID uint64, orderIDs []uint64) e
 			combinedErr = multierr.Append(combinedErr, fmt.Errorf("order %d: %w", orderID, ErrOrderAlreadyGiven))
 			continue
 		}
-
+		// не может же клиент вернуть заказа и потом снова его забрать :)
+		if order.Status == domain.StatusReturnedFromClient {
+			combinedErr = multierr.Append(combinedErr, fmt.Errorf("order %d: %w", orderID, ErrUnavaliableReturnedOrder))
+			continue
+		}
 		if currentTime.After(order.StorageUntil) {
 			combinedErr = multierr.Append(combinedErr, fmt.Errorf("order %d: %w (%s)", orderID, ErrStorageExpired, order.StorageUntil.Format("2006-01-02 15:04")))
 			continue
