@@ -21,6 +21,7 @@ type OrderStatus uint8
 const (
 	StatusInStorage OrderStatus = iota
 	StatusGivenToClient
+	StatusReturnedFromClient
 )
 
 // добавил часы и минуты, чтобы было легче отлаживать работу функций, где есть проверка с time.Now()
@@ -85,7 +86,9 @@ func getStatusString(status OrderStatus) string {
 	case StatusInStorage:
 		return "In Storage"
 	case StatusGivenToClient:
-		return "Given to Client"
+		return "Given to client"
+	case StatusReturnedFromClient:
+		return "Returned from client"
 	default:
 		return "Unknown Status"
 	}
@@ -154,13 +157,7 @@ func ReturnOrderFromClient(receiverID uint64, orderIDs []uint64) error {
 			ReturnedAt: time.Now().In(moscowTime),
 		}
 
-		delete(ordersByID, orderID)
-		if _, exists := ordersByReceiver[order.ReceiverID]; exists {
-			delete(ordersByReceiver[order.ReceiverID], orderID)
-			if len(ordersByReceiver[order.ReceiverID]) == 0 {
-				delete(ordersByReceiver, order.ReceiverID)
-			}
-		}
+		order.Status = StatusReturnedFromClient
 	}
 
 	return combinedErr
@@ -532,7 +529,7 @@ func BackToDelivery(OrderID uint64) error {
 		return fmt.Errorf("cannot return order %d to delivery: order not found", OrderID)
 	}
 
-	if order.Status != StatusInStorage {
+	if order.Status != StatusInStorage && order.Status != StatusReturnedFromClient {
 		return fmt.Errorf("cannot return order %d to delivery: order is not in storage (current status: %s)", OrderID, getStatusString(order.Status))
 	}
 	if time.Now().In(moscowTime).Before(order.StorageUntil) {
