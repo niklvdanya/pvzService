@@ -161,7 +161,7 @@ func (s *PVZService) GetReturnedOrders(page, limit uint64) ([]*domain.ReturnedOr
 	return paginated, uint64(len(allReturned)), nil
 }
 
-func (s *PVZService) GetReceiverOrders(receiverID uint64, inPVZ bool, page, limit uint64) ([]*domain.Order, uint64, error) {
+func (s *PVZService) GetReceiverOrders(receiverID uint64, inPVZ bool, lastN uint64, page, limit uint64) ([]*domain.Order, uint64, error) {
 	receiverOrders, err := s.orderRepo.GetByReceiverID(receiverID)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to get orders for receiver %d: %w", receiverID, err)
@@ -178,7 +178,15 @@ func (s *PVZService) GetReceiverOrders(receiverID uint64, inPVZ bool, page, limi
 	var paginatedOrders []*domain.Order
 	totalItems := uint64(len(filteredOrders))
 
-	paginatedOrders = paginate(filteredOrders, page, limit)
+	if lastN > 0 {
+		if totalItems > lastN {
+			paginatedOrders = filteredOrders[totalItems-lastN:]
+		} else {
+			paginatedOrders = filteredOrders
+		}
+	} else {
+		paginatedOrders = paginate(filteredOrders, page, limit)
+	}
 
 	return paginatedOrders, totalItems, nil
 }

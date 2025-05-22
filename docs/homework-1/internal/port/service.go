@@ -11,7 +11,7 @@ type OrderService interface {
 	ReturnOrderToDelivery(orderID uint64) error
 	IssueOrdersToClient(receiverID uint64, orderIDs []uint64) error
 	ReturnOrdersFromClient(receiverID uint64, orderIDs []uint64) error
-	GetReceiverOrders(receiverID uint64, inPVZ bool, page, limit uint64) ([]*domain.Order, uint64, error)
+	GetReceiverOrders(receiverID uint64, inPVZ bool, lastN uint64, page, limit uint64) ([]*domain.Order, uint64, error)
 	GetReturnedOrders(page, limit uint64) ([]*domain.ReturnedOrder, uint64, error)
 	GetOrderHistory() ([]*domain.Order, error)
 }

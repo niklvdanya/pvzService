@@ -204,11 +204,12 @@ func (adapter *CLIAdapter) ProcessOrders(cmd *cobra.Command, args []string) erro
 func (adapter *CLIAdapter) ListOrdersComm(cmd *cobra.Command, args []string) error {
 	receiverID, _ := cmd.Flags().GetUint64("user-id")
 	inPvz, _ := cmd.Flags().GetBool("in-pvz")
+	lastN, _ := cmd.Flags().GetUint64("last")
 	page, _ := cmd.Flags().GetUint64("page")
 	limit, _ := cmd.Flags().GetUint64("limit")
 
-	if receiverID == 0 {
-		return fmt.Errorf("missing --user-id")
+	if lastN > 0 && (page > 0 || limit > 0) {
+		return fmt.Errorf("cannot use --last with --page or --limit")
 	}
 
 	if page == 0 {
@@ -218,9 +219,9 @@ func (adapter *CLIAdapter) ListOrdersComm(cmd *cobra.Command, args []string) err
 		limit = 10
 	}
 
-	orders, totalItems, err := adapter.appService.GetReceiverOrders(receiverID, inPvz, page, limit)
+	orders, totalItems, err := adapter.appService.GetReceiverOrders(receiverID, inPvz, lastN, page, limit)
 	if err != nil {
-		return fmt.Errorf("failed to list orders: %w", err)
+		return err
 	}
 
 	if len(orders) == 0 {
