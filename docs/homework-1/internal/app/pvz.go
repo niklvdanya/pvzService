@@ -202,7 +202,83 @@ func (s *PVZService) GetOrderHistory() ([]*domain.Order, error) {
 	return allOrders, nil
 }
 
-// мб надо вынести в pkg или utils
+func (s *PVZService) ImportOrders(newOrders []struct {
+	OrderID      uint64 `json:"order_id"`
+	ReceiverID   uint64 `json:"receiver_id"`
+	StorageUntil string `json:"storage_until"`
+}) (uint64, error) {
+	var importedCount uint64
+	var combinedErr error
+
+	moscowLoc := util.GetMoscowLocation()
+
+	for _, reqOrder := range newOrders {
+		storageUntil, err := time.ParseInLocation("2006-01-02_15:04", reqOrder.StorageUntil, moscowLoc)
+		if err != nil {
+			combinedErr = multierr.Append(combinedErr, fmt.Errorf("order %d: invalid storage until time format '%s': %w", reqOrder.OrderID, reqOrder.StorageUntil, err))
+			continue
+		}
+		err = s.AcceptOrder(reqOrder.ReceiverID, reqOrder.OrderID, storageUntil)
+		if err != nil {
+			combinedErr = multierr.Append(combinedErr, fmt.Errorf("order %d: failed to accept: %w", reqOrder.OrderID, err))
+			continue
+		}
+		importedCount++
+	}
+	return importedCount, combinedErr
+}
+
+// по сути аналог GetReceiverOrders, но здесь нам важно сохранять последний полученный с функции заказ
+func (s *PVZService) GetReceiverOrdersScroll(receiverID uint64, lastID, limit uint64) ([]*domain.Order, uint64, error) {
+	receiverOrders, err := s.orderRepo.GetByReceiverID(receiverID)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get orders for receiver %d: %w", receiverID, err)
+	}
+
+	filteredOrders := receiverOrders
+	// для этого метода решил сделать сортировку для удобства, хоть это и не прописано в задании
+	sort.Slice(filteredOrders, func(i, j int) bool {
+		return filteredOrders[i].OrderID < filteredOrders[j].OrderID
+	})
+
+	totalItems := uint64(len(filteredOrders))
+	var resultOrders []*domain.Order
+	var nextLastID uint64 = 0
+
+	startIndex := -1
+	if lastID > 0 {
+		for i, order := range filteredOrders {
+			if order.OrderID == lastID {
+				startIndex = i
+				break
+			}
+		}
+
+		if startIndex == -1 {
+			return []*domain.Order{}, totalItems, nil
+		}
+	}
+	// в общем просто берем заказы с id [startOffset, endOffset]
+	startOffset := startIndex + 1
+	if startOffset >= len(filteredOrders) {
+		return []*domain.Order{}, totalItems, nil
+	}
+
+	endOffset := startOffset + int(limit)
+	if endOffset > len(filteredOrders) {
+		endOffset = len(filteredOrders)
+	}
+	resultOrders = filteredOrders[startOffset:endOffset]
+
+	if len(resultOrders) > 0 && endOffset < len(filteredOrders) {
+		nextLastID = resultOrders[len(resultOrders)-1].OrderID
+	} else {
+		nextLastID = 0
+	}
+
+	return resultOrders, nextLastID, nil
+}
+
 func paginate[T any](items []T, currentPage, itemsPerPage uint64) []T {
 	totalItems := uint64(len(items))
 

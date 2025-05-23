@@ -1,11 +1,15 @@
 package cli
 
 import (
+	"bufio"
+	"encoding/json"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 
+	"gitlab.ozon.dev/safariproxd/homework/docs/homework-1/internal/domain"
 	"gitlab.ozon.dev/safariproxd/homework/docs/homework-1/internal/port"
 	"gitlab.ozon.dev/safariproxd/homework/docs/homework-1/internal/util"
 
@@ -85,6 +89,25 @@ func (adapter *CLIAdapter) RegisterCommands(rootCmd *cobra.Command) {
 		RunE:  adapter.GetOrdersSortedByTime,
 	}
 	rootCmd.AddCommand(orderHistoryCmd)
+
+	importOrdersCmd := &cobra.Command{
+		Use:   "import-orders",
+		Short: "Imports orders from a JSON file.",
+		RunE:  adapter.ImportOrdersComm,
+	}
+	importOrdersCmd.Flags().StringP("file", "", "", "Path to the JSON file with orders")
+	importOrdersCmd.MarkFlagRequired("file")
+	rootCmd.AddCommand(importOrdersCmd)
+
+	scrollOrdersCmd := &cobra.Command{
+		Use:   "scroll-orders",
+		Short: "Infinite orders scroll.",
+		RunE:  adapter.ScrollOrdersComm,
+	}
+	scrollOrdersCmd.Flags().Uint64P("user-id", "", 0, "ID of the receiver")
+	scrollOrdersCmd.Flags().Uint64P("limit", "", 20, "Number of orders to fetch at once")
+	scrollOrdersCmd.MarkFlagRequired("user-id")
+	rootCmd.AddCommand(scrollOrdersCmd)
 
 	rootCmd.AddCommand(&cobra.Command{
 		Use:   "exit",
@@ -287,4 +310,130 @@ func (adapter *CLIAdapter) GetOrdersSortedByTime(cmd *cobra.Command, args []stri
 		)
 	}
 	return nil
+}
+
+func (adapter *CLIAdapter) ImportOrdersComm(cmd *cobra.Command, args []string) error {
+	filePath, _ := cmd.Flags().GetString("file")
+	if filePath == "" {
+		return fmt.Errorf("missing --file path")
+	}
+
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to read JSON file '%s': %w", filePath, err)
+	}
+
+	var ordersToImport []struct {
+		OrderID      uint64 `json:"order_id"`
+		ReceiverID   uint64 `json:"receiver_id"`
+		StorageUntil string `json:"storage_until"`
+	}
+
+	if err := json.Unmarshal(data, &ordersToImport); err != nil {
+		return fmt.Errorf("failed to parse JSON from file '%s': %w", filePath, err)
+	}
+
+	importedCount, importErr := adapter.appService.ImportOrders(ordersToImport)
+
+	if importErr != nil {
+		if importedCount > 0 {
+			fmt.Printf("IMPORTED: %d orders successfully.\n", importedCount)
+		}
+		multiErrors := multierr.Errors(importErr)
+		for _, e := range multiErrors {
+			fmt.Fprintf(cmd.ErrOrStderr(), "ERROR: %v\n", e)
+		}
+		return fmt.Errorf("import completed with errors")
+	}
+
+	fmt.Printf("IMPORTED: %d\n", importedCount)
+	return nil
+}
+
+func (adapter *CLIAdapter) ScrollOrdersComm(cmd *cobra.Command, args []string) error {
+	receiverID, _ := cmd.Flags().GetUint64("user-id")
+	limit, _ := cmd.Flags().GetUint64("limit")
+
+	if receiverID == 0 {
+		return fmt.Errorf("missing --user-id")
+	}
+	if limit == 0 {
+		limit = 20
+	}
+
+	var currentLastID uint64 = 0
+	scanner := bufio.NewScanner(os.Stdin)
+	// инициализация нашего цикла
+	orders, nextLastID, err := adapter.appService.GetReceiverOrdersScroll(receiverID, currentLastID, limit)
+	if err != nil {
+		fmt.Fprintf(cmd.ErrOrStderr(), "ERROR: %v\n", err)
+		return nil
+	}
+	adapter.printScrollOrders(orders, nextLastID)
+	currentLastID = nextLastID
+
+	for {
+		if currentLastID == 0 && len(orders) == 0 {
+			fmt.Println("No more orders to display.")
+			break
+		}
+
+		fmt.Print("> ")
+
+		if !scanner.Scan() {
+			break
+		}
+
+		input := strings.TrimSpace(scanner.Text())
+		if input == "" {
+			continue
+		}
+
+		switch strings.ToLower(input) {
+		case "next":
+			if currentLastID == 0 {
+				fmt.Println("No more orders to display.")
+				continue
+			}
+			// благодаря GetReceiverOrdersScroll находим n = limit заказов и заодно id последнего полученного заказа
+			orders, nextLastID, err = adapter.appService.GetReceiverOrdersScroll(receiverID, currentLastID, limit)
+			if err != nil {
+				fmt.Fprintf(cmd.ErrOrStderr(), "ERROR: %v\n", err)
+				return nil
+			}
+			adapter.printScrollOrders(orders, nextLastID)
+			currentLastID = nextLastID
+
+		case "exit":
+			fmt.Println("Exiting scroll-orders.")
+			return nil
+		default:
+			fmt.Println("Unknown command. Type 'next' to get more orders or 'exit' to quit.")
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("error reading input: %w", err)
+	}
+	return nil
+}
+
+func (adapter *CLIAdapter) printScrollOrders(orders []*domain.Order, nextLastID uint64) {
+	if len(orders) == 0 {
+		fmt.Println("No orders found in this batch.")
+	} else {
+		for _, order := range orders {
+			fmt.Printf("ORDER: %d Reciever: %d Status: %s Storage Limit: %s\n",
+				order.OrderID,
+				order.ReceiverID,
+				order.GetStatusString(),
+				order.StorageUntil.Format("2006-01-02_15:04"),
+			)
+		}
+	}
+	if nextLastID > 0 {
+		fmt.Printf("NEXT: %d\n", nextLastID)
+	} else {
+		fmt.Println("NEXT: 0 (End of orders)")
+	}
 }
