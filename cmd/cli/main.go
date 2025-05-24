@@ -7,10 +7,9 @@ import (
 	"os"
 	"strings"
 
-	"gitlab.ozon.dev/safariproxd/homework/docs/homework-1/internal/adapter/cli"
-	//"gitlab.ozon.dev/safariproxd/homework/docs/homework-1/internal/adapter/inmemory"
-	"gitlab.ozon.dev/safariproxd/homework/docs/homework-1/internal/adapter/file"
-	"gitlab.ozon.dev/safariproxd/homework/docs/homework-1/internal/app"
+	"gitlab.ozon.dev/safariproxd/homework/internal/adapter/cli"
+	"gitlab.ozon.dev/safariproxd/homework/internal/adapter/file"
+	"gitlab.ozon.dev/safariproxd/homework/internal/app"
 
 	"github.com/spf13/cobra"
 )

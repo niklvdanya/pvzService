@@ -1,9 +1,9 @@
 package inmemory
 
 import (
-	"gitlab.ozon.dev/safariproxd/homework/docs/homework-1/internal/app"
-	"gitlab.ozon.dev/safariproxd/homework/docs/homework-1/internal/domain"
-	"gitlab.ozon.dev/safariproxd/homework/docs/homework-1/internal/port"
+	"gitlab.ozon.dev/safariproxd/homework/internal/app"
+	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
+	"gitlab.ozon.dev/safariproxd/homework/internal/port"
 )
 
 // для каждого получателя храню id заказов, для каждого заказа подробную информацию о нем

@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.ozon.dev/safariproxd/homework/docs/homework-1/internal/domain"
-	"gitlab.ozon.dev/safariproxd/homework/docs/homework-1/internal/port"
-	"gitlab.ozon.dev/safariproxd/homework/docs/homework-1/internal/util"
+	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
+	"gitlab.ozon.dev/safariproxd/homework/internal/port"
+	"gitlab.ozon.dev/safariproxd/homework/internal/util"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/multierr"

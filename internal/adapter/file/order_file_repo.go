@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 
-	"gitlab.ozon.dev/safariproxd/homework/docs/homework-1/internal/app"
-	"gitlab.ozon.dev/safariproxd/homework/docs/homework-1/internal/domain"
-	"gitlab.ozon.dev/safariproxd/homework/docs/homework-1/internal/port"
+	"gitlab.ozon.dev/safariproxd/homework/internal/app"
+	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
+	"gitlab.ozon.dev/safariproxd/homework/internal/port"
 )
 
 const (

@@ -1,7 +1,7 @@
 package port
 
 import (
-	"gitlab.ozon.dev/safariproxd/homework/docs/homework-1/internal/domain"
+	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
 )
 
 type OrderRepository interface {

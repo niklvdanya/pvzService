@@ -1,4 +1,4 @@
-module gitlab.ozon.dev/safariproxd/homework/docs/homework-1
+module gitlab.ozon.dev/safariproxd/homework
 
 go 1.23.2
 

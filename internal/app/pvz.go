@@ -5,9 +5,9 @@ import (
 	"sort"
 	"time"
 
-	"gitlab.ozon.dev/safariproxd/homework/docs/homework-1/internal/domain"
-	"gitlab.ozon.dev/safariproxd/homework/docs/homework-1/internal/port"
-	"gitlab.ozon.dev/safariproxd/homework/docs/homework-1/internal/util"
+	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
+	"gitlab.ozon.dev/safariproxd/homework/internal/port"
+	"gitlab.ozon.dev/safariproxd/homework/internal/util"
 
 	"go.uber.org/multierr"
 )
@@ -258,7 +258,8 @@ func (s *PVZService) GetReceiverOrdersScroll(receiverID uint64, lastID, limit ui
 			return []*domain.Order{}, totalItems, nil
 		}
 	}
-	// в общем просто берем заказы с id [startOffset, endOffset]
+	// каждый раз берем n = limit заказов и если что проверяем границы
+	// и обновляем постоянно lastID
 	startOffset := startIndex + 1
 	if startOffset >= len(filteredOrders) {
 		return []*domain.Order{}, totalItems, nil
