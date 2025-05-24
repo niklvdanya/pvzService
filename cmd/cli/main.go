@@ -34,18 +34,14 @@ var rootCmd = &cobra.Command{
 // в adapter/inmemory и adapter/file расположены конкретные реализации интерфейса OrderRepository, которые использует pvzService
 // по сути они отвечают за хранение данных
 
-// эти реализации используют модели, объявленные в domain/models.go
+// эти реализации используют модели, объявленные в domain/order.go
 
 func main() {
 	orderRepo, err := file.NewFileOrderRepository()
 	if err != nil {
 		log.Fatalf("Failed to initialize file order repository: %v", err)
 	}
-	returnedOrderRepo, err := file.NewFileReturnedOrderRepository()
-	if err != nil {
-		log.Fatalf("Failed to initialize file returned order repository: %v", err)
-	}
-	pvzService := app.NewPVZService(orderRepo, returnedOrderRepo)
+	pvzService := app.NewPVZService(orderRepo)
 
 	cliAdapter := cli.NewCLIAdapter(pvzService)
 

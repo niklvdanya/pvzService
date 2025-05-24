@@ -3,7 +3,6 @@ package inmemory
 import (
 	"gitlab.ozon.dev/safariproxd/homework/internal/app"
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
-	"gitlab.ozon.dev/safariproxd/homework/internal/port"
 )
 
 // для каждого получателя храню id заказов, для каждого заказа подробную информацию о нем
@@ -11,14 +10,13 @@ import (
 // но например в некоторых тасках нам дан только id заказа и в таком случае пришлось бы пробегаться по всем пользователям и искать подходящий id заказа
 // и наоборот, для каждого пользователя мы должны знать какие у него заказы.
 var (
-	ordersByID       map[uint64]*domain.Order         = make(map[uint64]*domain.Order)
-	ordersByReceiver map[uint64]map[uint64]struct{}   = make(map[uint64]map[uint64]struct{})
-	returnedOrders   map[uint64]*domain.ReturnedOrder = make(map[uint64]*domain.ReturnedOrder)
+	ordersByID       map[uint64]*domain.Order       = make(map[uint64]*domain.Order)
+	ordersByReceiver map[uint64]map[uint64]struct{} = make(map[uint64]map[uint64]struct{})
 )
 
 type InMemoryOrderRepository struct{}
 
-func NewInMemoryOrderRepository() port.OrderRepository {
+func NewInMemoryOrderRepository() *InMemoryOrderRepository {
 	return &InMemoryOrderRepository{}
 }
 
@@ -42,24 +40,11 @@ func (r *InMemoryOrderRepository) GetByID(orderID uint64) (*domain.Order, error)
 	return order, nil
 }
 
-func (r *InMemoryOrderRepository) Delete(orderID uint64) error {
-	order, exists := ordersByID[orderID]
-	if !exists {
-		return app.ErrOrderNotFound
-	}
-	delete(ordersByID, orderID)
-	delete(ordersByReceiver[order.ReceiverID], orderID)
-	if len(ordersByReceiver[order.ReceiverID]) == 0 {
-		delete(ordersByReceiver, order.ReceiverID)
-	}
-	return nil
-}
-
 func (r *InMemoryOrderRepository) GetByReceiverID(receiverID uint64) ([]*domain.Order, error) {
 	var receiverOrders []*domain.Order
 	if orderIDs, exists := ordersByReceiver[receiverID]; exists {
 		for orderID := range orderIDs {
-			if order, exists := ordersByID[orderID]; exists {
+			if order, exists := ordersByID[orderID]; exists && order.IsBelongsToReciever(receiverID) {
 				receiverOrders = append(receiverOrders, order)
 			}
 		}
@@ -83,21 +68,12 @@ func (r *InMemoryOrderRepository) Update(order *domain.Order) error {
 	return nil
 }
 
-type InMemoryReturnedOrderRepository struct{}
-
-func NewInMemoryReturnedOrderRepository() port.ReturnedOrderRepository {
-	return &InMemoryReturnedOrderRepository{}
-}
-
-func (r *InMemoryReturnedOrderRepository) Save(returnedOrder *domain.ReturnedOrder) error {
-	returnedOrders[returnedOrder.OrderID] = returnedOrder
-	return nil
-}
-
-func (r *InMemoryReturnedOrderRepository) GetAll() ([]*domain.ReturnedOrder, error) {
-	var allReturned []*domain.ReturnedOrder
-	for _, order := range returnedOrders {
-		allReturned = append(allReturned, order)
+func (r *InMemoryOrderRepository) GetReturnedOrders() ([]*domain.Order, error) {
+	var returnedOrders []*domain.Order
+	for _, order := range ordersByID {
+		if order.Status == domain.StatusReturnedFromClient || order.Status == domain.StatusGivenToCourier {
+			returnedOrders = append(returnedOrders, order)
+		}
 	}
-	return allReturned, nil
+	return returnedOrders, nil
 }

@@ -6,36 +6,40 @@ import (
 	"time"
 
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
-	"gitlab.ozon.dev/safariproxd/homework/internal/port"
-	"gitlab.ozon.dev/safariproxd/homework/internal/util"
 
 	"go.uber.org/multierr"
 )
 
+type OrderRepository interface {
+	Save(order *domain.Order) error
+	GetByID(orderID uint64) (*domain.Order, error)
+	Update(order *domain.Order) error
+	GetByReceiverID(receiverID uint64) ([]*domain.Order, error)
+	GetReturnedOrders() ([]*domain.Order, error)
+	GetAllOrders() ([]*domain.Order, error)
+}
+
 type PVZService struct {
-	orderRepo         port.OrderRepository
-	returnedOrderRepo port.ReturnedOrderRepository
+	orderRepo OrderRepository
 }
 
 func NewPVZService(
-	orderRepo port.OrderRepository,
-	returnedOrderRepo port.ReturnedOrderRepository,
-) port.OrderService {
+	orderRepo OrderRepository,
+) *PVZService {
 	return &PVZService{
-		orderRepo:         orderRepo,
-		returnedOrderRepo: returnedOrderRepo,
+		orderRepo: orderRepo,
 	}
 }
 
 func (s *PVZService) AcceptOrder(receiverID, orderID uint64, storageUntil time.Time) error {
-	currentTimeInMoscow := util.NowInMoscow()
+	currentTime := time.Now()
 
-	if storageUntil.Before(currentTimeInMoscow) {
+	if storageUntil.Before(currentTime) {
 		return fmt.Errorf(
 			"cannot accept order %d: storage period already expired. Current time: %s, Provided until: %s",
 			orderID,
-			currentTimeInMoscow.Format("2006-01-02 15:04"),
-			storageUntil.Format("2006-01-02 15:04"),
+			currentTime.Format("2006-01-02"),
+			storageUntil.Format("2006-01-02"),
 		)
 	}
 
@@ -49,8 +53,8 @@ func (s *PVZService) AcceptOrder(receiverID, orderID uint64, storageUntil time.T
 		ReceiverID:     receiverID,
 		StorageUntil:   storageUntil,
 		Status:         domain.StatusInStorage,
-		AcceptTime:     currentTimeInMoscow,
-		LastUpdateTime: currentTimeInMoscow,
+		AcceptTime:     currentTime,
+		LastUpdateTime: currentTime,
 	}
 	return s.orderRepo.Save(order)
 }
@@ -68,21 +72,27 @@ func (s *PVZService) ReturnOrderToDelivery(orderID uint64) error {
 			order.GetStatusString(),
 		)
 	}
-	if util.NowInMoscow().Before(order.StorageUntil) {
+	if time.Now().Before(order.StorageUntil) {
 		return fmt.Errorf(
 			"cannot return order %d to delivery: %w (until: %s)",
 			orderID,
 			ErrStorageNotExpired,
-			order.StorageUntil.Format("2006-01-02 15:04"),
+			order.StorageUntil.Format("2006-01-02"),
 		)
 	}
+	if order.Status == domain.StatusInStorage {
+		order.Status = domain.StatusReturnedWithoutClient
+	} else {
+		order.Status = domain.StatusGivenToCourier
+	}
+	order.LastUpdateTime = time.Now()
 
-	return s.orderRepo.Delete(orderID)
+	return s.orderRepo.Update(order)
 }
 
 func (s *PVZService) IssueOrdersToClient(receiverID uint64, orderIDs []uint64) error {
 	var combinedErr error
-	currentTime := util.NowInMoscow()
+	currentTime := time.Now()
 
 	for _, orderID := range orderIDs {
 		order, err := s.orderRepo.GetByID(orderID)
@@ -127,7 +137,7 @@ func (s *PVZService) IssueOrdersToClient(receiverID uint64, orderIDs []uint64) e
 					"order %d: %w (%s)",
 					orderID,
 					ErrStorageExpired,
-					order.StorageUntil.Format("2006-01-02 15:04"),
+					order.StorageUntil.Format("2006-01-02"),
 				),
 			)
 			continue
@@ -147,7 +157,7 @@ func (s *PVZService) IssueOrdersToClient(receiverID uint64, orderIDs []uint64) e
 
 func (s *PVZService) ReturnOrdersFromClient(receiverID uint64, orderIDs []uint64) error {
 	var combinedErr error
-	currentTimeInMoscow := util.NowInMoscow()
+	currentTimeInMoscow := time.Now()
 
 	for _, orderID := range orderIDs {
 		order, err := s.orderRepo.GetByID(orderID)
@@ -187,19 +197,6 @@ func (s *PVZService) ReturnOrdersFromClient(receiverID uint64, orderIDs []uint64
 			continue
 		}
 
-		returnedOrder := &domain.ReturnedOrder{
-			OrderID:    order.OrderID,
-			ReceiverID: order.ReceiverID,
-			ReturnedAt: currentTimeInMoscow,
-		}
-		if err := s.returnedOrderRepo.Save(returnedOrder); err != nil {
-			combinedErr = multierr.Append(
-				combinedErr,
-				fmt.Errorf("order %d: failed to save returned order: %w", orderID, err),
-			)
-			continue
-		}
-
 		order.Status = domain.StatusReturnedFromClient
 		order.LastUpdateTime = currentTimeInMoscow
 		if err := s.orderRepo.Update(order); err != nil {
@@ -212,14 +209,14 @@ func (s *PVZService) ReturnOrdersFromClient(receiverID uint64, orderIDs []uint64
 	return combinedErr
 }
 
-func (s *PVZService) GetReturnedOrders(page, limit uint64) ([]*domain.ReturnedOrder, uint64, error) {
-	allReturned, err := s.returnedOrderRepo.GetAll()
+func (s *PVZService) GetReturnedOrders(page, limit uint64) ([]*domain.Order, uint64, error) {
+	returnOrders, err := s.orderRepo.GetReturnedOrders()
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to get all returned orders: %w", err)
 	}
 
-	paginated := paginate(allReturned, page, limit)
-	return paginated, uint64(len(allReturned)), nil
+	paginated := paginate(returnOrders, page, limit)
+	return paginated, uint64(len(returnOrders)), nil
 }
 
 func (s *PVZService) GetReceiverOrders(
@@ -258,7 +255,7 @@ func (s *PVZService) GetReceiverOrders(
 }
 
 func (s *PVZService) GetOrderHistory() ([]*domain.Order, error) {
-	allOrders, err := s.orderRepo.GetAll()
+	allOrders, err := s.orderRepo.GetAllOrders()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get all orders for history: %w", err)
 	}
@@ -276,10 +273,8 @@ func (s *PVZService) ImportOrders(newOrders []struct {
 	var importedCount uint64
 	var combinedErr error
 
-	moscowLoc := util.GetMoscowLocation()
-
 	for _, reqOrder := range newOrders {
-		storageUntil, err := time.ParseInLocation("2006-01-02_15:04", reqOrder.StorageUntil, moscowLoc)
+		storageUntil, err := time.Parse("2006-01-02", reqOrder.StorageUntil)
 		if err != nil {
 			combinedErr = multierr.Append(
 				combinedErr,

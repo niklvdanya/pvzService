@@ -10,6 +10,8 @@ const (
 	StatusInStorage OrderStatus = iota
 	StatusGivenToClient
 	StatusReturnedFromClient
+	StatusReturnedWithoutClient
+	StatusGivenToCourier
 )
 
 type Order struct {
@@ -25,11 +27,6 @@ type Order struct {
 // (чтобы не проходиться по всем товарам и проверять их статус)
 // 2) возвращенные клиентами товары могут вернуть курьеру и тогда их надо удалять с хранилища
 // а задание наверное предполгает хранить даже такие заказы
-type ReturnedOrder struct {
-	OrderID    uint64
-	ReceiverID uint64
-	ReturnedAt time.Time
-}
 
 func (o *Order) GetStatusString() string {
 	switch o.Status {
@@ -39,8 +36,16 @@ func (o *Order) GetStatusString() string {
 		return "Given to client"
 	case StatusReturnedFromClient:
 		return "Returned from client"
+	case StatusGivenToCourier:
+		return "Given to courier"
+	case StatusReturnedWithoutClient:
+		return "Given to courier"
 	// по идее такого быть не может, но я добавил default на всякий случай
 	default:
 		return "Unknown Status"
 	}
+}
+
+func (o *Order) IsBelongsToReciever(receiverID uint64) bool {
+	return o.Status == StatusInStorage || o.Status == StatusGivenToClient
 }

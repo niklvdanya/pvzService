@@ -10,30 +10,48 @@ import (
 	"time"
 
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
-	"gitlab.ozon.dev/safariproxd/homework/internal/port"
-	"gitlab.ozon.dev/safariproxd/homework/internal/util"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/multierr"
 )
 
-type CLIAdapter struct {
-	appService port.OrderService
+type OrderService interface {
+	AcceptOrder(receiverID, orderID uint64, storageUntil time.Time) error
+	ReturnOrderToDelivery(orderID uint64) error
+	IssueOrdersToClient(receiverID uint64, orderIDs []uint64) error
+	ReturnOrdersFromClient(receiverID uint64, orderIDs []uint64) error
+	GetReceiverOrders(
+		receiverID uint64,
+		inPVZ bool,
+		lastN, page, limit uint64,
+	) ([]*domain.Order, uint64, error)
+	GetReceiverOrdersScroll(receiverID uint64, lastID, limit uint64) ([]*domain.Order, uint64, error)
+	GetReturnedOrders(page, limit uint64) ([]*domain.Order, uint64, error)
+	GetOrderHistory() ([]*domain.Order, error)
+	ImportOrders(orders []struct {
+		OrderID      uint64 `json:"order_id"`
+		ReceiverID   uint64 `json:"receiver_id"`
+		StorageUntil string `json:"storage_until"`
+	}) (uint64, error)
 }
 
-func NewCLIAdapter(appService port.OrderService) *CLIAdapter {
+type CLIAdapter struct {
+	appService OrderService
+}
+
+func NewCLIAdapter(appService OrderService) *CLIAdapter {
 	return &CLIAdapter{appService: appService}
 }
 
-func (adapter *CLIAdapter) RegisterCommands(rootCmd *cobra.Command) {
+func (a *CLIAdapter) RegisterCommands(rootCmd *cobra.Command) {
 	acceptOrderCmd := &cobra.Command{
 		Use:   "accept-order",
 		Short: "Accepts an order from a courier.",
-		RunE:  adapter.AddComm,
+		RunE:  a.AddComm,
 	}
 	acceptOrderCmd.Flags().Uint64P("order-id", "", 0, "ID of the order")
 	acceptOrderCmd.Flags().Uint64P("user-id", "", 0, "ID of the receiver")
-	acceptOrderCmd.Flags().StringP("expires", "", "", "Storage expiration date (YYYY-MM-DD_HH:MM)")
+	acceptOrderCmd.Flags().StringP("expires", "", "", "Storage expiration date (YYYY-MM-DD)")
 	acceptOrderCmd.MarkFlagRequired("order-id")
 	acceptOrderCmd.MarkFlagRequired("user-id")
 	acceptOrderCmd.MarkFlagRequired("expires")
@@ -42,7 +60,7 @@ func (adapter *CLIAdapter) RegisterCommands(rootCmd *cobra.Command) {
 	returnOrderCmd := &cobra.Command{
 		Use:   "return-order",
 		Short: "Returns an order to the courier.",
-		RunE:  adapter.BackOrder,
+		RunE:  a.BackOrder,
 	}
 	returnOrderCmd.Flags().Uint64P("order-id", "", 0, "ID of the order to return")
 	returnOrderCmd.MarkFlagRequired("order-id")
@@ -51,7 +69,7 @@ func (adapter *CLIAdapter) RegisterCommands(rootCmd *cobra.Command) {
 	processOrdersCmd := &cobra.Command{
 		Use:   "process-orders",
 		Short: "Issues orders to a client or accepts returns from a client.",
-		RunE:  adapter.ProcessOrders,
+		RunE:  a.ProcessOrders,
 	}
 	processOrdersCmd.Flags().Uint64P("user-id", "", 0, "ID of the receiver")
 	processOrdersCmd.Flags().StringP("action", "", "", "Action to perform: 'issue' or 'return'")
@@ -64,7 +82,7 @@ func (adapter *CLIAdapter) RegisterCommands(rootCmd *cobra.Command) {
 	listOrdersCmd := &cobra.Command{
 		Use:   "list-orders",
 		Short: "Lists orders for a specific receiver.",
-		RunE:  adapter.ListOrdersComm,
+		RunE:  a.ListOrdersComm,
 	}
 	listOrdersCmd.Flags().Uint64P("user-id", "", 0, "ID of the receiver")
 	listOrdersCmd.Flags().BoolP("in-pvz", "", false, "Filter for orders currently in PVZ storage")
@@ -77,7 +95,7 @@ func (adapter *CLIAdapter) RegisterCommands(rootCmd *cobra.Command) {
 	listReturnsCmd := &cobra.Command{
 		Use:   "list-returns",
 		Short: "Lists all returned orders.",
-		RunE:  adapter.GetReturnedOrders,
+		RunE:  a.GetReturnedOrders,
 	}
 	listReturnsCmd.Flags().Uint64P("page", "", 0, "Page number for pagination")
 	listReturnsCmd.Flags().Uint64P("limit", "", 0, "Items per page for pagination")
@@ -86,14 +104,14 @@ func (adapter *CLIAdapter) RegisterCommands(rootCmd *cobra.Command) {
 	orderHistoryCmd := &cobra.Command{
 		Use:   "order-history",
 		Short: "Shows the history of all order status changes (sorted by last update time).",
-		RunE:  adapter.GetOrdersSortedByTime,
+		RunE:  a.GetOrdersSortedByTime,
 	}
 	rootCmd.AddCommand(orderHistoryCmd)
 
 	importOrdersCmd := &cobra.Command{
 		Use:   "import-orders",
 		Short: "Imports orders from a JSON file.",
-		RunE:  adapter.ImportOrdersComm,
+		RunE:  a.ImportOrdersComm,
 	}
 	importOrdersCmd.Flags().StringP("file", "", "", "Path to the JSON file with orders")
 	importOrdersCmd.MarkFlagRequired("file")
@@ -102,7 +120,7 @@ func (adapter *CLIAdapter) RegisterCommands(rootCmd *cobra.Command) {
 	scrollOrdersCmd := &cobra.Command{
 		Use:   "scroll-orders",
 		Short: "Infinite orders scroll.",
-		RunE:  adapter.ScrollOrdersComm,
+		RunE:  a.ScrollOrdersComm,
 	}
 	scrollOrdersCmd.Flags().Uint64P("user-id", "", 0, "ID of the receiver")
 	scrollOrdersCmd.Flags().Uint64P("limit", "", 20, "Number of orders to fetch at once")
@@ -119,7 +137,7 @@ func (adapter *CLIAdapter) RegisterCommands(rootCmd *cobra.Command) {
 	})
 }
 
-func (adapter *CLIAdapter) AddComm(cmd *cobra.Command, args []string) error {
+func (a *CLIAdapter) AddComm(cmd *cobra.Command, args []string) error {
 	receiverID, _ := cmd.Flags().GetUint64("user-id")
 	orderID, _ := cmd.Flags().GetUint64("order-id")
 	storageUntilStr, _ := cmd.Flags().GetString("expires")
@@ -134,17 +152,17 @@ func (adapter *CLIAdapter) AddComm(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("missing --expires")
 	}
 
-	storageUntil, err := time.ParseInLocation("2006-01-02_15:04", storageUntilStr, util.GetMoscowLocation())
+	storageUntil, err := time.Parse("2006-01-02", storageUntilStr)
 	if err != nil {
 		return fmt.Errorf(
-			"invalid storage until time format for Order %d. Expected 2006-01-02_15:04, got '%s': %w",
+			"invalid storage until time format for Order %d. Expected 2006-01-02, got '%s': %w",
 			orderID,
 			storageUntilStr,
 			err,
 		)
 	}
 
-	err = adapter.appService.AcceptOrder(receiverID, orderID, storageUntil)
+	err = a.appService.AcceptOrder(receiverID, orderID, storageUntil)
 	if err != nil {
 		return fmt.Errorf("failed to accept order: %w", err)
 	}
@@ -152,14 +170,14 @@ func (adapter *CLIAdapter) AddComm(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func (adapter *CLIAdapter) BackOrder(cmd *cobra.Command, args []string) error {
+func (a *CLIAdapter) BackOrder(cmd *cobra.Command, args []string) error {
 	orderID, _ := cmd.Flags().GetUint64("order-id")
 
 	if orderID == 0 {
 		return fmt.Errorf("missing --order-id")
 	}
 
-	err := adapter.appService.ReturnOrderToDelivery(orderID)
+	err := a.appService.ReturnOrderToDelivery(orderID)
 	if err != nil {
 		return fmt.Errorf("failed to return order: %w", err)
 	}
@@ -167,7 +185,7 @@ func (adapter *CLIAdapter) BackOrder(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func (adapter *CLIAdapter) ProcessOrders(cmd *cobra.Command, args []string) error {
+func (a *CLIAdapter) ProcessOrders(cmd *cobra.Command, args []string) error {
 	receiverID, _ := cmd.Flags().GetUint64("user-id")
 	action, _ := cmd.Flags().GetString("action")
 	orderIDsStr, _ := cmd.Flags().GetString("order-ids")
@@ -198,9 +216,9 @@ func (adapter *CLIAdapter) ProcessOrders(cmd *cobra.Command, args []string) erro
 
 	var processingErr error
 	if action == "issue" {
-		processingErr = adapter.appService.IssueOrdersToClient(receiverID, orderIDs)
+		processingErr = a.appService.IssueOrdersToClient(receiverID, orderIDs)
 	} else {
-		processingErr = adapter.appService.ReturnOrdersFromClient(receiverID, orderIDs)
+		processingErr = a.appService.ReturnOrdersFromClient(receiverID, orderIDs)
 	}
 
 	if processingErr != nil {
@@ -229,7 +247,7 @@ func (adapter *CLIAdapter) ProcessOrders(cmd *cobra.Command, args []string) erro
 	return nil
 }
 
-func (adapter *CLIAdapter) ListOrdersComm(cmd *cobra.Command, args []string) error {
+func (a *CLIAdapter) ListOrdersComm(cmd *cobra.Command, args []string) error {
 	receiverID, _ := cmd.Flags().GetUint64("user-id")
 	inPvz, _ := cmd.Flags().GetBool("in-pvz")
 	lastN, _ := cmd.Flags().GetUint64("last")
@@ -247,7 +265,7 @@ func (adapter *CLIAdapter) ListOrdersComm(cmd *cobra.Command, args []string) err
 		limit = 10
 	}
 
-	orders, totalItems, err := adapter.appService.GetReceiverOrders(receiverID, inPvz, lastN, page, limit)
+	orders, totalItems, err := a.appService.GetReceiverOrders(receiverID, inPvz, lastN, page, limit)
 	if err != nil {
 		return err
 	}
@@ -260,7 +278,7 @@ func (adapter *CLIAdapter) ListOrdersComm(cmd *cobra.Command, args []string) err
 				order.OrderID,
 				order.ReceiverID,
 				order.GetStatusString(),
-				order.StorageUntil.Format("2006-01-02_15:04"),
+				order.StorageUntil.Format("2006-01-02"),
 			)
 		}
 	}
@@ -268,7 +286,7 @@ func (adapter *CLIAdapter) ListOrdersComm(cmd *cobra.Command, args []string) err
 	return nil
 }
 
-func (adapter *CLIAdapter) GetReturnedOrders(cmd *cobra.Command, args []string) error {
+func (a *CLIAdapter) GetReturnedOrders(cmd *cobra.Command, args []string) error {
 	page, _ := cmd.Flags().GetUint64("page")
 	limit, _ := cmd.Flags().GetUint64("limit")
 
@@ -279,7 +297,7 @@ func (adapter *CLIAdapter) GetReturnedOrders(cmd *cobra.Command, args []string) 
 		limit = 10
 	}
 
-	returnedOrderList, totalItems, err := adapter.appService.GetReturnedOrders(page, limit)
+	returnedOrderList, totalItems, err := a.appService.GetReturnedOrders(page, limit)
 	if err != nil {
 		return fmt.Errorf("failed to list returned orders: %w", err)
 	}
@@ -288,7 +306,7 @@ func (adapter *CLIAdapter) GetReturnedOrders(cmd *cobra.Command, args []string) 
 		fmt.Println("No returns found on this page or no returns in total.")
 	} else {
 		for _, order := range returnedOrderList {
-			fmt.Printf("RETURN: %d %d %s\n", order.OrderID, order.ReceiverID, order.ReturnedAt.Format("2006-01-02 15:04"))
+			fmt.Printf("RETURN: %d %d %s\n", order.OrderID, order.ReceiverID, order.LastUpdateTime.Format("2006-01-02"))
 		}
 	}
 	fmt.Printf("PAGE: %d LIMIT: %d\n", page, limit)
@@ -296,8 +314,8 @@ func (adapter *CLIAdapter) GetReturnedOrders(cmd *cobra.Command, args []string) 
 	return nil
 }
 
-func (adapter *CLIAdapter) GetOrdersSortedByTime(cmd *cobra.Command, args []string) error {
-	allOrders, err := adapter.appService.GetOrderHistory()
+func (a *CLIAdapter) GetOrdersSortedByTime(cmd *cobra.Command, args []string) error {
+	allOrders, err := a.appService.GetOrderHistory()
 	if err != nil {
 		return fmt.Errorf("failed to get order history: %w", err)
 	}
@@ -311,13 +329,13 @@ func (adapter *CLIAdapter) GetOrdersSortedByTime(cmd *cobra.Command, args []stri
 		fmt.Printf("HISTORY: %d %s %s\n",
 			order.OrderID,
 			order.GetStatusString(),
-			order.LastUpdateTime.Format("2006-01-02 15:04"),
+			order.LastUpdateTime.Format("2006-01-02"),
 		)
 	}
 	return nil
 }
 
-func (adapter *CLIAdapter) ImportOrdersComm(cmd *cobra.Command, args []string) error {
+func (a *CLIAdapter) ImportOrdersComm(cmd *cobra.Command, args []string) error {
 	filePath, _ := cmd.Flags().GetString("file")
 	if filePath == "" {
 		return fmt.Errorf("missing --file path")
@@ -338,13 +356,13 @@ func (adapter *CLIAdapter) ImportOrdersComm(cmd *cobra.Command, args []string) e
 		return fmt.Errorf("failed to parse JSON from file '%s': %w", filePath, err)
 	}
 
-	importedCount, importErr := adapter.appService.ImportOrders(ordersToImport)
+	importedCount, err := a.appService.ImportOrders(ordersToImport)
 
-	if importErr != nil {
+	if err != nil {
 		if importedCount > 0 {
 			fmt.Printf("IMPORTED: %d orders successfully.\n", importedCount)
 		}
-		multiErrors := multierr.Errors(importErr)
+		multiErrors := multierr.Errors(err)
 		for _, e := range multiErrors {
 			fmt.Fprintf(cmd.ErrOrStderr(), "ERROR: %v\n", e)
 		}
@@ -355,7 +373,7 @@ func (adapter *CLIAdapter) ImportOrdersComm(cmd *cobra.Command, args []string) e
 	return nil
 }
 
-func (adapter *CLIAdapter) ScrollOrdersComm(cmd *cobra.Command, args []string) error {
+func (a *CLIAdapter) ScrollOrdersComm(cmd *cobra.Command, args []string) error {
 	receiverID, _ := cmd.Flags().GetUint64("user-id")
 	limit, _ := cmd.Flags().GetUint64("limit")
 
@@ -369,12 +387,12 @@ func (adapter *CLIAdapter) ScrollOrdersComm(cmd *cobra.Command, args []string) e
 	var currentLastID uint64 = 0
 	scanner := bufio.NewScanner(os.Stdin)
 	// инициализация нашего цикла
-	orders, nextLastID, err := adapter.appService.GetReceiverOrdersScroll(receiverID, currentLastID, limit)
+	orders, nextLastID, err := a.appService.GetReceiverOrdersScroll(receiverID, currentLastID, limit)
 	if err != nil {
 		fmt.Fprintf(cmd.ErrOrStderr(), "ERROR: %v\n", err)
 		return nil
 	}
-	adapter.printScrollOrders(orders, nextLastID)
+	a.printScrollOrders(orders, nextLastID)
 	currentLastID = nextLastID
 
 	for {
@@ -401,7 +419,7 @@ func (adapter *CLIAdapter) ScrollOrdersComm(cmd *cobra.Command, args []string) e
 				continue
 			}
 			// благодаря GetReceiverOrdersScroll находим n = limit заказов и заодно id последнего полученного заказа
-			orders, nextLastID, err = adapter.appService.GetReceiverOrdersScroll(
+			orders, nextLastID, err = a.appService.GetReceiverOrdersScroll(
 				receiverID,
 				currentLastID,
 				limit,
@@ -410,7 +428,7 @@ func (adapter *CLIAdapter) ScrollOrdersComm(cmd *cobra.Command, args []string) e
 				fmt.Fprintf(cmd.ErrOrStderr(), "ERROR: %v\n", err)
 				return nil
 			}
-			adapter.printScrollOrders(orders, nextLastID)
+			a.printScrollOrders(orders, nextLastID)
 			currentLastID = nextLastID
 
 		case "exit":
@@ -427,7 +445,7 @@ func (adapter *CLIAdapter) ScrollOrdersComm(cmd *cobra.Command, args []string) e
 	return nil
 }
 
-func (adapter *CLIAdapter) printScrollOrders(orders []*domain.Order, nextLastID uint64) {
+func (a *CLIAdapter) printScrollOrders(orders []*domain.Order, nextLastID uint64) {
 	if len(orders) == 0 {
 		fmt.Println("No orders found in this batch.")
 	} else {
@@ -436,7 +454,7 @@ func (adapter *CLIAdapter) printScrollOrders(orders []*domain.Order, nextLastID 
 				order.OrderID,
 				order.ReceiverID,
 				order.GetStatusString(),
-				order.StorageUntil.Format("2006-01-02_15:04"),
+				order.StorageUntil.Format("2006-01-02"),
 			)
 		}
 	}

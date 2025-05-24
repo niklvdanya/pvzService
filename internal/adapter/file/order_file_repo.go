@@ -7,12 +7,10 @@ import (
 
 	"gitlab.ozon.dev/safariproxd/homework/internal/app"
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
-	"gitlab.ozon.dev/safariproxd/homework/internal/port"
 )
 
 const (
-	ordersFilePath         = "data/orders.json"
-	returnedOrdersFilePath = "data/returned_orders.json"
+	ordersFilePath = "data/orders.json"
 )
 
 func makeDir() error {
@@ -20,15 +18,15 @@ func makeDir() error {
 }
 
 type fileOrderData struct {
-	Orders           map[uint64]*domain.Order       `json:"orders"`
-	OrdersByReceiver map[uint64]map[uint64]struct{} `json:"orders_by_receiver"`
+	Orders           map[uint64]*domain.Order
+	OrdersByReceiver map[uint64]map[uint64]struct{}
 }
 
 type FileOrderRepository struct {
 	cache *fileOrderData
 }
 
-func NewFileOrderRepository() (port.OrderRepository, error) {
+func NewFileOrderRepository() (*FileOrderRepository, error) {
 	if err := makeDir(); err != nil {
 		return nil, fmt.Errorf("failed to ensure data directory: %w", err)
 	}
@@ -95,39 +93,6 @@ func (r *FileOrderRepository) GetByID(orderID uint64) (*domain.Order, error) {
 	return order, nil
 }
 
-func (r *FileOrderRepository) Delete(orderID uint64) error {
-	order, exists := r.cache.Orders[orderID]
-	if !exists {
-		return app.ErrOrderNotFound
-	}
-	delete(r.cache.Orders, orderID)
-	delete(r.cache.OrdersByReceiver[order.ReceiverID], orderID)
-	if len(r.cache.OrdersByReceiver[order.ReceiverID]) == 0 {
-		delete(r.cache.OrdersByReceiver, order.ReceiverID)
-	}
-	return r.saveToFile()
-}
-
-func (r *FileOrderRepository) GetByReceiverID(receiverID uint64) ([]*domain.Order, error) {
-	var receiverOrders []*domain.Order
-	if orderIDs, exists := r.cache.OrdersByReceiver[receiverID]; exists {
-		for orderID := range orderIDs {
-			if order, exists := r.cache.Orders[orderID]; exists {
-				receiverOrders = append(receiverOrders, order)
-			}
-		}
-	}
-	return receiverOrders, nil
-}
-
-func (r *FileOrderRepository) GetAll() ([]*domain.Order, error) {
-	var allOrders []*domain.Order
-	for _, order := range r.cache.Orders {
-		allOrders = append(allOrders, order)
-	}
-	return allOrders, nil
-}
-
 func (r *FileOrderRepository) Update(order *domain.Order) error {
 	if _, exists := r.cache.Orders[order.OrderID]; !exists {
 		return app.ErrOrderNotFound
@@ -136,66 +101,38 @@ func (r *FileOrderRepository) Update(order *domain.Order) error {
 	return r.saveToFile()
 }
 
-type fileReturnedOrderData struct {
-	ReturnedOrders map[uint64]*domain.ReturnedOrder `json:"returned_orders"`
+func (r *FileOrderRepository) GetByReceiverID(receiverID uint64) ([]*domain.Order, error) {
+	orderIDs, exists := r.cache.OrdersByReceiver[receiverID]
+	if !exists {
+		return []*domain.Order{}, nil
+	}
+
+	orders := make([]*domain.Order, 0, len(orderIDs))
+	for orderID := range orderIDs {
+		if order, exists := r.cache.Orders[orderID]; exists && order.IsBelongsToReciever(receiverID) {
+			orders = append(orders, order)
+		}
+	}
+	return orders, nil
 }
 
-type FileReturnedOrderRepository struct {
-	cache *fileReturnedOrderData
+func (r *FileOrderRepository) GetReturnedOrders() ([]*domain.Order, error) {
+	var returnedOrders []*domain.Order
+	for _, order := range r.cache.Orders {
+		// заказ из списка возвратов, если 1) его вернул клиент и он в хранилище
+		// 2) его вернул клиент и он был выдан курьеру
+		// если заказ был принят курьером и сразу выдан обратно, то я такие заказы не считаю возвратами
+		if order.Status == domain.StatusReturnedFromClient || order.Status == domain.StatusGivenToCourier {
+			returnedOrders = append(returnedOrders, order)
+		}
+	}
+	return returnedOrders, nil
 }
 
-func NewFileReturnedOrderRepository() (port.ReturnedOrderRepository, error) {
-	if err := makeDir(); err != nil {
-		return nil, fmt.Errorf("failed to ensure data directory: %w", err)
+func (r *FileOrderRepository) GetAllOrders() ([]*domain.Order, error) {
+	orders := make([]*domain.Order, 0, len(r.cache.Orders))
+	for _, order := range r.cache.Orders {
+		orders = append(orders, order)
 	}
-	repo := &FileReturnedOrderRepository{
-		cache: &fileReturnedOrderData{
-			ReturnedOrders: make(map[uint64]*domain.ReturnedOrder),
-		},
-	}
-	if err := repo.loadFromFile(); err != nil && !os.IsNotExist(err) {
-		return nil, fmt.Errorf("failed to load returned orders from file: %w", err)
-	}
-	return repo, nil
-}
-
-func (r *FileReturnedOrderRepository) loadFromFile() error {
-	data, err := os.ReadFile(returnedOrdersFilePath)
-	if err != nil {
-		return err
-	}
-	var loadedData fileReturnedOrderData
-	if err := json.Unmarshal(data, &loadedData); err != nil {
-		return fmt.Errorf("failed to unmarshal returned orders data: %w", err)
-	}
-	r.cache = &loadedData
-	return nil
-}
-
-func (r *FileReturnedOrderRepository) saveToFile() error {
-	data, err := json.MarshalIndent(r.cache, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal returned orders data: %w", err)
-	}
-	tmpFilePath := returnedOrdersFilePath + ".tmp"
-	if err := os.WriteFile(tmpFilePath, data, 0644); err != nil {
-		return fmt.Errorf("failed to write temporary returned orders file: %w", err)
-	}
-	if err := os.Rename(tmpFilePath, returnedOrdersFilePath); err != nil {
-		return fmt.Errorf("failed to rename temporary returned orders file: %w", err)
-	}
-	return nil
-}
-
-func (r *FileReturnedOrderRepository) Save(returnedOrder *domain.ReturnedOrder) error {
-	r.cache.ReturnedOrders[returnedOrder.OrderID] = returnedOrder
-	return r.saveToFile()
-}
-
-func (r *FileReturnedOrderRepository) GetAll() ([]*domain.ReturnedOrder, error) {
-	var allReturned []*domain.ReturnedOrder
-	for _, order := range r.cache.ReturnedOrders {
-		allReturned = append(allReturned, order)
-	}
-	return allReturned, nil
+	return orders, nil
 }
