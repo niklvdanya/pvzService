@@ -10,73 +10,83 @@ import (
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
 )
 
-func (a *CLIAdapter) ScrollOrdersComm(cmd *cobra.Command, args []string) error {
-	receiverID, err := cmd.Flags().GetUint64("user-id")
-	if err != nil {
-		return mapError(fmt.Errorf("flag.GetUint64: %w", err))
-	}
-	limit, err := cmd.Flags().GetUint64("limit")
-	if err != nil {
-		return mapError(fmt.Errorf("flag.GetUint64: %w", err))
-	}
-
-	if limit == 0 {
-		limit = 20
-	}
-
-	var currentLastID uint64
-	scanner := bufio.NewScanner(os.Stdin)
-	orders, nextLastID, err := a.appService.GetReceiverOrdersScroll(receiverID, currentLastID, limit)
-	if err != nil {
-		return mapError(err)
-	}
-	a.printScrollOrders(orders, nextLastID)
-	currentLastID = nextLastID
-
-	for {
-		if currentLastID == 0 && len(orders) == 0 {
-			fmt.Println("No more orders to display.")
-			break
-		}
-
-		fmt.Print("> ")
-
-		if !scanner.Scan() {
-			break
-		}
-
-		input := strings.TrimSpace(scanner.Text())
-		if input == "" {
-			continue
-		}
-
-		switch strings.ToLower(input) {
-		case "next":
-			if currentLastID == 0 {
-				fmt.Println("No more orders to display.")
-				continue
-			}
-			orders, nextLastID, err = a.appService.GetReceiverOrdersScroll(receiverID, currentLastID, limit)
+func RegisterScrollOrdersCmd(rootCmd *cobra.Command, appService OrderService) {
+	scrollOrdersCmd := &cobra.Command{
+		Use:   "scroll-orders",
+		Short: "Infinite orders scroll.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			receiverID, err := cmd.Flags().GetUint64("user-id")
 			if err != nil {
-				return mapError(err)
+				return MapError(fmt.Errorf("flag.GetUint64: %w", err))
 			}
-			a.printScrollOrders(orders, nextLastID)
-			currentLastID = nextLastID
-		case "exit":
-			fmt.Println("Exiting scroll-orders.")
-			return nil
-		default:
-			fmt.Println("Unknown command. Type 'next' to get more orders or 'exit' to quit.")
-		}
-	}
+			limit, err := cmd.Flags().GetUint64("limit")
+			if err != nil {
+				return MapError(fmt.Errorf("flag.GetUint64: %w", err))
+			}
 
-	if err := scanner.Err(); err != nil {
-		return mapError(fmt.Errorf("scanner.Scan: %w", err))
+			if limit == 0 {
+				limit = 20
+			}
+
+			var currentLastID uint64
+			scanner := bufio.NewScanner(os.Stdin)
+			orders, nextLastID, err := appService.GetReceiverOrdersScroll(receiverID, currentLastID, limit)
+			if err != nil {
+				return MapError(err)
+			}
+			printScrollOrders(orders, nextLastID)
+			currentLastID = nextLastID
+
+			for {
+				if currentLastID == 0 && len(orders) == 0 {
+					fmt.Println("No more orders to display.")
+					break
+				}
+
+				fmt.Print("> ")
+
+				if !scanner.Scan() {
+					break
+				}
+
+				input := strings.TrimSpace(scanner.Text())
+				if input == "" {
+					continue
+				}
+
+				switch strings.ToLower(input) {
+				case "next":
+					if currentLastID == 0 {
+						fmt.Println("No more orders to display.")
+						continue
+					}
+					orders, nextLastID, err = appService.GetReceiverOrdersScroll(receiverID, currentLastID, limit)
+					if err != nil {
+						return MapError(err)
+					}
+					printScrollOrders(orders, nextLastID)
+					currentLastID = nextLastID
+				case "exit":
+					fmt.Println("Exiting scroll-orders.")
+					return nil
+				default:
+					fmt.Println("Unknown command. Type 'next' to get more orders or 'exit' to quit.")
+				}
+			}
+
+			if err := scanner.Err(); err != nil {
+				return MapError(fmt.Errorf("scanner.Scan: %w", err))
+			}
+			return nil
+		},
 	}
-	return nil
+	scrollOrdersCmd.Flags().Uint64P("user-id", "", 0, "ID of the receiver")
+	scrollOrdersCmd.Flags().Uint64P("limit", "", 20, "Number of orders to fetch at once")
+	scrollOrdersCmd.MarkFlagRequired("user-id")
+	rootCmd.AddCommand(scrollOrdersCmd)
 }
 
-func (a *CLIAdapter) printScrollOrders(orders []*domain.Order, nextLastID uint64) {
+func printScrollOrders(orders []*domain.Order, nextLastID uint64) {
 	if len(orders) == 0 {
 		fmt.Println("No orders found in this batch.")
 	} else {

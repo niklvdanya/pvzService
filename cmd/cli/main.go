@@ -67,8 +67,14 @@ func main() {
 
 		rootCmd.SetArgs(strings.Fields(line))
 		if err := rootCmd.Execute(); err != nil {
+			var mappedErr error
+			if strings.Contains(err.Error(), "flag") || strings.Contains(err.Error(), "strconv.ParseUint") {
+				mappedErr = cli.MapError(fmt.Errorf("invalid flag format: %w", err))
+			} else {
+				mappedErr = cli.MapError(err)
+			}
 			log.Printf("Command execution error: %v", err)
-			fmt.Fprintf(os.Stderr, "%s\n", err)
+			fmt.Fprintf(os.Stderr, "%s\n", mappedErr)
 			if debug {
 				fmt.Fprintf(os.Stderr, "DEBUG: %v\n", err)
 			}

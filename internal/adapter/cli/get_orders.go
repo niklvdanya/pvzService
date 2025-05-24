@@ -6,57 +6,50 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func (a *CLIAdapter) GetReturnedOrders(cmd *cobra.Command, args []string) error {
-	page, err := cmd.Flags().GetUint64("page")
-	if err != nil {
-		return mapError(fmt.Errorf("flag.GetUint64: %w", err))
-	}
-	limit, err := cmd.Flags().GetUint64("limit")
-	if err != nil {
-		return mapError(fmt.Errorf("flag.GetUint64: %w", err))
-	}
+func RegisterGetReturnedOrdersCmd(rootCmd *cobra.Command, appService OrderService) {
+	getReturnedOrdersCmd := &cobra.Command{
+		Use:   "list-orders --returned",
+		Short: "Lists returned orders with pagination.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			page, err := cmd.Flags().GetUint64("page")
+			if err != nil {
+				return MapError(fmt.Errorf("flag.GetUint64: %w", err))
+			}
+			limit, err := cmd.Flags().GetUint64("limit")
+			if err != nil {
+				return MapError(fmt.Errorf("flag.GetUint64: %w", err))
+			}
 
-	if page == 0 {
-		page = 1
-	}
-	if limit == 0 {
-		limit = 10
-	}
+			if page == 0 {
+				page = 1
+			}
+			if limit == 0 {
+				limit = 10
+			}
 
-	returnedOrderList, totalItems, err := a.appService.GetReturnedOrders(page, limit)
-	if err != nil {
-		return mapError(err)
-	}
+			orders, totalItems, err := appService.GetReturnedOrders(page, limit)
+			if err != nil {
+				return MapError(err)
+			}
 
-	if len(returnedOrderList) == 0 {
-		fmt.Println("No returns found on this page or no returns in total.")
-	} else {
-		for _, order := range returnedOrderList {
-			fmt.Printf("RETURN: %d %d %s\n", order.OrderID, order.ReceiverID, order.LastUpdateTime.Format("2006-01-02"))
-		}
+			if len(orders) == 0 {
+				fmt.Println("No returned orders found.")
+			} else {
+				for _, order := range orders {
+					fmt.Printf("Order: %d Receiver: %d Status: %s Storage Limit: %s\n",
+						order.OrderID,
+						order.ReceiverID,
+						order.GetStatusString(),
+						order.StorageUntil.Format("2006-01-02"),
+					)
+				}
+			}
+			fmt.Printf("TOTAL: %d\n", totalItems)
+			return nil
+		},
 	}
-	fmt.Printf("PAGE: %d LIMIT: %d\n", page, limit)
-	fmt.Printf("TOTAL: %d\n", totalItems)
-	return nil
-}
-
-func (a *CLIAdapter) GetOrdersSortedByTime(cmd *cobra.Command, args []string) error {
-	allOrders, err := a.appService.GetOrderHistory()
-	if err != nil {
-		return mapError(err)
-	}
-
-	if len(allOrders) == 0 {
-		fmt.Println("No orders in the system.")
-		return nil
-	}
-
-	for _, order := range allOrders {
-		fmt.Printf("HISTORY: %d %s %s\n",
-			order.OrderID,
-			order.GetStatusString(),
-			order.LastUpdateTime.Format("2006-01-02"),
-		)
-	}
-	return nil
+	getReturnedOrdersCmd.Flags().Uint64P("page", "", 0, "Page number for pagination")
+	getReturnedOrdersCmd.Flags().Uint64P("limit", "", 0, "Items per page for pagination")
+	getReturnedOrdersCmd.Flags().BoolP("returned", "", true, "Filter for returned orders")
+	rootCmd.AddCommand(getReturnedOrdersCmd)
 }
