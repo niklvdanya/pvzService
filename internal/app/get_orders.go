@@ -7,25 +7,14 @@ import (
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
 )
 
-func (s *PVZService) GetReturnedOrders(page, limit uint64) ([]*domain.Order, uint64, error) {
-	returnOrders, err := s.orderRepo.GetReturnedOrders()
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to get all returned orders: %w", err)
+func (s *PVZService) GetReceiverOrders(receiverID uint64, inPVZ bool, lastN, page, limit uint64) ([]*domain.Order, uint64, error) {
+	if receiverID == 0 {
+		return nil, 0, fmt.Errorf("validation: %w", domain.ValidationFailedError("receiver ID cannot be empty"))
 	}
 
-	paginated := paginate(returnOrders, page, limit)
-	return paginated, uint64(len(returnOrders)), nil
-}
-
-func (s *PVZService) GetReceiverOrders(
-	receiverID uint64,
-	inPVZ bool,
-	lastN uint64,
-	page, limit uint64,
-) ([]*domain.Order, uint64, error) {
 	receiverOrders, err := s.orderRepo.GetByReceiverID(receiverID)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to get orders for receiver %d: %w", receiverID, err)
+		return nil, 0, fmt.Errorf("repo.GetByReceiverID: %w", err)
 	}
 
 	var filteredOrders []*domain.Order
@@ -52,67 +41,72 @@ func (s *PVZService) GetReceiverOrders(
 	return paginatedOrders, totalItems, nil
 }
 
-func (s *PVZService) GetOrderHistory() ([]*domain.Order, error) {
-	allOrders, err := s.orderRepo.GetAllOrders()
+func (s *PVZService) GetReturnedOrders(page, limit uint64) ([]*domain.Order, uint64, error) {
+	returnOrders, err := s.orderRepo.GetReturnedOrders()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get all orders for history: %w", err)
+		return nil, 0, fmt.Errorf("repo.GetReturnedOrders: %w", err)
 	}
-	sort.Slice(allOrders, func(i, j int) bool {
-		return allOrders[i].LastUpdateTime.After(allOrders[j].LastUpdateTime)
-	})
-	return allOrders, nil
+
+	paginated := paginate(returnOrders, page, limit)
+	return paginated, uint64(len(returnOrders)), nil
 }
 
-// по сути аналог GetReceiverOrders, но здесь нам важно сохранять последний полученный с функции заказ
-func (s *PVZService) GetReceiverOrdersScroll(
-	receiverID uint64,
-	lastID, limit uint64,
-) ([]*domain.Order, uint64, error) {
-	receiverOrders, err := s.orderRepo.GetByReceiverID(receiverID)
+func (s *PVZService) GetOrderHistory() ([]*domain.Order, error) {
+	orders, err := s.orderRepo.GetAllOrders()
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to get orders for receiver %d: %w", receiverID, err)
+		return nil, fmt.Errorf("repo.GetAllOrders: %w", err)
 	}
 
-	filteredOrders := receiverOrders
-	// для этого метода решил сделать сортировку для удобства, хоть это и не прописано в задании
-	sort.Slice(filteredOrders, func(i, j int) bool {
-		return filteredOrders[i].OrderID < filteredOrders[j].OrderID
+	sort.Slice(orders, func(i, j int) bool {
+		return orders[i].LastUpdateTime.After(orders[j].LastUpdateTime)
+	})
+	return orders, nil
+}
+
+func (s *PVZService) GetReceiverOrdersScroll(receiverID uint64, lastID, limit uint64) ([]*domain.Order, uint64, error) {
+	if receiverID == 0 {
+		return nil, 0, fmt.Errorf("validation: %w", domain.ValidationFailedError("receiver ID cannot be empty"))
+	}
+
+	receiverOrders, err := s.orderRepo.GetByReceiverID(receiverID)
+	if err != nil {
+		return nil, 0, fmt.Errorf("repo.GetByReceiverID: %w", err)
+	}
+
+	sort.Slice(receiverOrders, func(i, j int) bool {
+		return receiverOrders[i].OrderID < receiverOrders[j].OrderID
 	})
 
-	totalItems := uint64(len(filteredOrders))
+	totalItems := uint64(len(receiverOrders))
 	var resultOrders []*domain.Order
-	var nextLastID uint64 = 0
+	var nextLastID uint64
 
 	startIndex := -1
 	if lastID > 0 {
-		for i, order := range filteredOrders {
+		for i, order := range receiverOrders {
 			if order.OrderID == lastID {
 				startIndex = i
 				break
 			}
 		}
-
 		if startIndex == -1 {
 			return []*domain.Order{}, totalItems, nil
 		}
 	}
-	// каждый раз берем n = limit заказов и если что проверяем границы
-	// и обновляем постоянно lastID
+
 	startOffset := startIndex + 1
-	if startOffset >= len(filteredOrders) {
+	if startOffset >= len(receiverOrders) {
 		return []*domain.Order{}, totalItems, nil
 	}
 
 	endOffset := startOffset + int(limit)
-	if endOffset > len(filteredOrders) {
-		endOffset = len(filteredOrders)
+	if endOffset > len(receiverOrders) {
+		endOffset = len(receiverOrders)
 	}
-	resultOrders = filteredOrders[startOffset:endOffset]
+	resultOrders = receiverOrders[startOffset:endOffset]
 
-	if len(resultOrders) > 0 && endOffset < len(filteredOrders) {
+	if len(resultOrders) > 0 && endOffset < len(receiverOrders) {
 		nextLastID = resultOrders[len(resultOrders)-1].OrderID
-	} else {
-		nextLastID = 0
 	}
 
 	return resultOrders, nextLastID, nil

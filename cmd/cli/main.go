@@ -14,35 +14,34 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var rootCmd = &cobra.Command{
-	Short: "PVZ (Pickup Point) command-line interface",
-	Long: `A simple command-line interface for managing orders in a pickup point.
-    Type 'help' for a list of commands, or 'help <command>' for specific command usage.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		cmd.Help()
-	},
-	SilenceUsage:  true,
-	SilenceErrors: true,
+var (
+	debug   bool
+	rootCmd = &cobra.Command{
+		Short:         "PVZ (Pickup Point) command-line interface",
+		Long:          `A simple command-line interface for managing orders in a pickup point.`,
+		Run:           func(cmd *cobra.Command, args []string) { cmd.Help() },
+		SilenceUsage:  true,
+		SilenceErrors: true,
+	}
+)
+
+func initLogging() {
+	file, err := os.OpenFile("pvz.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Fatalf("Failed to open log file: %v", err)
+	}
+	log.SetOutput(file)
 }
 
-// немного о структуре кода:
-
-// в cli/cli.go основная логика работы консольки
-// в app/pvz.go основная логика работы с заказами - те самые 6 команд из таски
-// cli и PvzService общаются при помощи интерфейса - port.OrderService
-
-// в adapter/inmemory и adapter/file расположены конкретные реализации интерфейса OrderRepository, которые использует pvzService
-// по сути они отвечают за хранение данных
-
-// эти реализации используют модели, объявленные в domain/order.go
-
 func main() {
+	initLogging()
+	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "Enable debug mode")
+
 	orderRepo, err := file.NewFileOrderRepository()
 	if err != nil {
 		log.Fatalf("Failed to initialize file order repository: %v", err)
 	}
 	pvzService := app.NewPVZService(orderRepo)
-
 	cliAdapter := cli.NewCLIAdapter(pvzService)
 
 	cliAdapter.RegisterCommands(rootCmd)
@@ -50,7 +49,7 @@ func main() {
 	fmt.Println("Welcome to PVZ system.")
 	scanner := bufio.NewScanner(os.Stdin)
 	for {
-		fmt.Print("pvz>")
+		fmt.Print("pvz> ")
 
 		if !scanner.Scan() {
 			break
@@ -68,10 +67,14 @@ func main() {
 
 		rootCmd.SetArgs(strings.Fields(line))
 		if err := rootCmd.Execute(); err != nil {
-			fmt.Fprintf(os.Stderr, "Command Error: %v\n", err)
+			log.Printf("Command execution error: %v", err)
+			fmt.Fprintf(os.Stderr, "%s\n", err)
+			if debug {
+				fmt.Fprintf(os.Stderr, "DEBUG: %v\n", err)
+			}
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		log.Fatalf("Error reading from stdin: %s", err)
+		log.Fatalf("Error reading from stdin: %v", err)
 	}
 }

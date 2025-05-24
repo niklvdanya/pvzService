@@ -9,19 +9,18 @@ import (
 
 func (s *PVZService) AcceptOrder(receiverID, orderID uint64, storageUntil time.Time) error {
 	currentTime := time.Now()
-
 	if storageUntil.Before(currentTime) {
-		return fmt.Errorf(
-			"cannot accept order %d: storage period already expired. Current time: %s, Provided until: %s",
-			orderID,
-			currentTime.Format("2006-01-02"),
-			storageUntil.Format("2006-01-02"),
-		)
+		return fmt.Errorf("validation: %w", domain.ValidationFailedError(
+			fmt.Sprintf("storage period already expired (current: %s, provided: %s)",
+				currentTime.Format("2006-01-02"), storageUntil.Format("2006-01-02"))))
 	}
 
 	_, err := s.orderRepo.GetByID(orderID)
 	if err == nil {
-		return fmt.Errorf("cannot accept order %d: %w", orderID, ErrOrderAlreadyExists)
+		return fmt.Errorf("repo.GetByID: %w", domain.OrderAlreadyExistsError(orderID))
+	}
+	if !isNotFoundError(err) {
+		return fmt.Errorf("repo.GetByID: %w", err)
 	}
 
 	order := &domain.Order{
@@ -32,5 +31,8 @@ func (s *PVZService) AcceptOrder(receiverID, orderID uint64, storageUntil time.T
 		AcceptTime:     currentTime,
 		LastUpdateTime: currentTime,
 	}
-	return s.orderRepo.Save(order)
+	if err := s.orderRepo.Save(order); err != nil {
+		return fmt.Errorf("repo.Save: %w", err)
+	}
+	return nil
 }

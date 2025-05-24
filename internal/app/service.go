@@ -1,6 +1,8 @@
 package app
 
 import (
+	"errors"
+
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
 )
 
@@ -46,4 +48,9 @@ func paginate[T any](items []T, currentPage, itemsPerPage uint64) []T {
 	}
 
 	return items[startIndex:endIndex]
+}
+
+func isNotFoundError(err error) bool {
+	var domainErr domain.Error
+	return errors.As(err, &domainErr) && domainErr.Code == domain.ErrorCodeNotFound
 }

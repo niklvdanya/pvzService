@@ -10,24 +10,18 @@ import (
 func (s *PVZService) ReturnOrderToDelivery(orderID uint64) error {
 	order, err := s.orderRepo.GetByID(orderID)
 	if err != nil {
-		return fmt.Errorf("cannot return order %d to delivery: %w", orderID, err)
+		return fmt.Errorf("repo.GetByID: %w", err)
 	}
 
 	if order.Status != domain.StatusInStorage && order.Status != domain.StatusReturnedFromClient {
-		return fmt.Errorf(
-			"cannot return order %d to delivery: order is not in storage (current status: %s)",
-			orderID,
-			order.GetStatusString(),
-		)
+		return fmt.Errorf("validation: %w", domain.ValidationFailedError(
+			fmt.Sprintf("order is not in storage (current status: %s)", order.GetStatusString())))
 	}
 	if time.Now().Before(order.StorageUntil) {
-		return fmt.Errorf(
-			"cannot return order %d to delivery: %w (until: %s)",
-			orderID,
-			ErrStorageNotExpired,
-			order.StorageUntil.Format("2006-01-02"),
-		)
+		return fmt.Errorf("validation: %w", domain.StorageNotExpiredError(
+			orderID, order.StorageUntil.Format("2006-01-02")))
 	}
+
 	if order.Status == domain.StatusInStorage {
 		order.Status = domain.StatusReturnedWithoutClient
 	} else {
@@ -35,5 +29,8 @@ func (s *PVZService) ReturnOrderToDelivery(orderID uint64) error {
 	}
 	order.LastUpdateTime = time.Now()
 
-	return s.orderRepo.Update(order)
+	if err := s.orderRepo.Update(order); err != nil {
+		return fmt.Errorf("repo.Update: %w", err)
+	}
+	return nil
 }

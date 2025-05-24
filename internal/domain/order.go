@@ -23,12 +23,7 @@ type Order struct {
 	LastUpdateTime time.Time
 }
 
-// с возвращенными товарами работаем отдельно, потому что 1) удобнее будет вывести списко возвратов
-// (чтобы не проходиться по всем товарам и проверять их статус)
-// 2) возвращенные клиентами товары могут вернуть курьеру и тогда их надо удалять с хранилища
-// а задание наверное предполгает хранить даже такие заказы
-
-func (o *Order) GetStatusString() string {
+func (o Order) GetStatusString() string {
 	switch o.Status {
 	case StatusInStorage:
 		return "In Storage"
@@ -39,13 +34,12 @@ func (o *Order) GetStatusString() string {
 	case StatusGivenToCourier:
 		return "Given to courier"
 	case StatusReturnedWithoutClient:
-		return "Given to courier"
-	// по идее такого быть не может, но я добавил default на всякий случай
+		return "Given to courier without client"
 	default:
 		return "Unknown Status"
 	}
 }
 
-func (o *Order) IsBelongsToReciever(receiverID uint64) bool {
+func (o Order) IsBelongsToReciever(receiverID uint64) bool {
 	return o.Status == StatusInStorage || o.Status == StatusGivenToClient
 }

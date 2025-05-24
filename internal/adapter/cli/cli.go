@@ -9,9 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
-
 	"github.com/spf13/cobra"
+	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
 	"go.uber.org/multierr"
 )
 
@@ -20,11 +19,7 @@ type OrderService interface {
 	ReturnOrderToDelivery(orderID uint64) error
 	IssueOrdersToClient(receiverID uint64, orderIDs []uint64) error
 	ReturnOrdersFromClient(receiverID uint64, orderIDs []uint64) error
-	GetReceiverOrders(
-		receiverID uint64,
-		inPVZ bool,
-		lastN, page, limit uint64,
-	) ([]*domain.Order, uint64, error)
+	GetReceiverOrders(receiverID uint64, inPVZ bool, lastN, page, limit uint64) ([]*domain.Order, uint64, error)
 	GetReceiverOrdersScroll(receiverID uint64, lastID, limit uint64) ([]*domain.Order, uint64, error)
 	GetReturnedOrders(page, limit uint64) ([]*domain.Order, uint64, error)
 	GetOrderHistory() ([]*domain.Order, error)
@@ -126,82 +121,65 @@ func (a *CLIAdapter) RegisterCommands(rootCmd *cobra.Command) {
 	scrollOrdersCmd.Flags().Uint64P("limit", "", 20, "Number of orders to fetch at once")
 	scrollOrdersCmd.MarkFlagRequired("user-id")
 	rootCmd.AddCommand(scrollOrdersCmd)
-
-	rootCmd.AddCommand(&cobra.Command{
-		Use:   "exit",
-		Short: "Exits the PVZ system.",
-		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Println("Exiting PVZ system.")
-			// exit(0) не делаю, потому что main все равно завершит работу
-		},
-	})
 }
 
 func (a *CLIAdapter) AddComm(cmd *cobra.Command, args []string) error {
-	receiverID, _ := cmd.Flags().GetUint64("user-id")
-	orderID, _ := cmd.Flags().GetUint64("order-id")
-	storageUntilStr, _ := cmd.Flags().GetString("expires")
-
-	if receiverID == 0 {
-		return fmt.Errorf("missing --user-id")
+	receiverID, err := cmd.Flags().GetUint64("user-id")
+	if err != nil {
+		return mapError(fmt.Errorf("flag.GetUint64: %w", err))
 	}
-	if orderID == 0 {
-		return fmt.Errorf("missing --order-id")
+	orderID, err := cmd.Flags().GetUint64("order-id")
+	if err != nil {
+		return mapError(fmt.Errorf("flag.GetUint64: %w", err))
 	}
-	if storageUntilStr == "" {
-		return fmt.Errorf("missing --expires")
+	storageUntilStr, err := cmd.Flags().GetString("expires")
+	if err != nil {
+		return mapError(fmt.Errorf("flag.GetString: %w", err))
 	}
 
 	storageUntil, err := time.Parse("2006-01-02", storageUntilStr)
 	if err != nil {
-		return fmt.Errorf(
-			"invalid storage until time format for Order %d. Expected 2006-01-02, got '%s': %w",
-			orderID,
-			storageUntilStr,
-			err,
-		)
+		return mapError(fmt.Errorf("time.Parse: %w", err))
 	}
 
 	err = a.appService.AcceptOrder(receiverID, orderID, storageUntil)
 	if err != nil {
-		return fmt.Errorf("failed to accept order: %w", err)
+		return mapError(err)
 	}
 	fmt.Printf("ORDER_ACCEPTED: %d\n", orderID)
 	return nil
 }
 
 func (a *CLIAdapter) BackOrder(cmd *cobra.Command, args []string) error {
-	orderID, _ := cmd.Flags().GetUint64("order-id")
-
-	if orderID == 0 {
-		return fmt.Errorf("missing --order-id")
+	orderID, err := cmd.Flags().GetUint64("order-id")
+	if err != nil {
+		return mapError(fmt.Errorf("flag.GetUint64: %w", err))
 	}
 
-	err := a.appService.ReturnOrderToDelivery(orderID)
+	err = a.appService.ReturnOrderToDelivery(orderID)
 	if err != nil {
-		return fmt.Errorf("failed to return order: %w", err)
+		return mapError(err)
 	}
 	fmt.Printf("ORDER_RETURNED: %d\n", orderID)
 	return nil
 }
 
 func (a *CLIAdapter) ProcessOrders(cmd *cobra.Command, args []string) error {
-	receiverID, _ := cmd.Flags().GetUint64("user-id")
-	action, _ := cmd.Flags().GetString("action")
-	orderIDsStr, _ := cmd.Flags().GetString("order-ids")
-
-	if receiverID == 0 {
-		return fmt.Errorf("missing --user-id")
+	receiverID, err := cmd.Flags().GetUint64("user-id")
+	if err != nil {
+		return mapError(fmt.Errorf("flag.GetUint64: %w", err))
 	}
-	if action == "" {
-		return fmt.Errorf("missing --action")
+	action, err := cmd.Flags().GetString("action")
+	if err != nil {
+		return mapError(fmt.Errorf("flag.GetString: %w", err))
 	}
-	if orderIDsStr == "" {
-		return fmt.Errorf("missing --order-ids")
+	orderIDsStr, err := cmd.Flags().GetString("order-ids")
+	if err != nil {
+		return mapError(fmt.Errorf("flag.GetString: %w", err))
 	}
 
 	if action != "issue" && action != "return" {
-		return fmt.Errorf("invalid action '%s': action must be 'issue' or 'return'", action)
+		return mapError(fmt.Errorf("invalid action '%s'", action))
 	}
 
 	orderIDStrings := strings.Split(orderIDsStr, ",")
@@ -209,7 +187,7 @@ func (a *CLIAdapter) ProcessOrders(cmd *cobra.Command, args []string) error {
 	for _, s := range orderIDStrings {
 		orderID, err := strconv.ParseUint(s, 10, 64)
 		if err != nil {
-			return fmt.Errorf("invalid OrderID '%s': must be a number", s)
+			return mapError(fmt.Errorf("strconv.ParseUint: %w", err))
 		}
 		orderIDs = append(orderIDs, orderID)
 	}
@@ -224,38 +202,41 @@ func (a *CLIAdapter) ProcessOrders(cmd *cobra.Command, args []string) error {
 	if processingErr != nil {
 		multiErrors := multierr.Errors(processingErr)
 		for _, e := range multiErrors {
-			if strings.HasPrefix(e.Error(), "order") {
-				parts := strings.SplitN(e.Error(), ": ", 2)
-				if len(parts) == 2 {
-					orderPart := strings.TrimPrefix(parts[0], "order ")
-					orderID, parseErr := strconv.ParseUint(orderPart, 10, 64)
-					if parseErr == nil {
-						fmt.Fprintf(cmd.ErrOrStderr(), "Order %d %s\n", orderID, parts[1])
-						continue
-					}
-				}
-			}
-			fmt.Fprintf(cmd.ErrOrStderr(), "ERROR: %v\n", e)
+			fmt.Fprintf(cmd.ErrOrStderr(), "%s\n", mapError(e))
 		}
-		return fmt.Errorf("one or more orders failed to process")
+		return mapError(fmt.Errorf("process orders failed"))
 	}
 
 	for _, orderID := range orderIDs {
 		fmt.Printf("PROCESSED: %d\n", orderID)
 	}
-
 	return nil
 }
 
 func (a *CLIAdapter) ListOrdersComm(cmd *cobra.Command, args []string) error {
-	receiverID, _ := cmd.Flags().GetUint64("user-id")
-	inPvz, _ := cmd.Flags().GetBool("in-pvz")
-	lastN, _ := cmd.Flags().GetUint64("last")
-	page, _ := cmd.Flags().GetUint64("page")
-	limit, _ := cmd.Flags().GetUint64("limit")
+	receiverID, err := cmd.Flags().GetUint64("user-id")
+	if err != nil {
+		return mapError(fmt.Errorf("flag.GetUint64: %w", err))
+	}
+	inPvz, err := cmd.Flags().GetBool("in-pvz")
+	if err != nil {
+		return mapError(fmt.Errorf("flag.GetBool: %w", err))
+	}
+	lastN, err := cmd.Flags().GetUint64("last")
+	if err != nil {
+		return mapError(fmt.Errorf("flag.GetUint64: %w", err))
+	}
+	page, err := cmd.Flags().GetUint64("page")
+	if err != nil {
+		return mapError(fmt.Errorf("flag.GetUint64: %w", err))
+	}
+	limit, err := cmd.Flags().GetUint64("limit")
+	if err != nil {
+		return mapError(fmt.Errorf("flag.GetUint64: %w", err))
+	}
 
 	if lastN > 0 && (page > 0 || limit > 0) {
-		return fmt.Errorf("cannot use --last with --page or --limit")
+		return mapError(fmt.Errorf("invalid flags combination"))
 	}
 
 	if page == 0 {
@@ -267,14 +248,14 @@ func (a *CLIAdapter) ListOrdersComm(cmd *cobra.Command, args []string) error {
 
 	orders, totalItems, err := a.appService.GetReceiverOrders(receiverID, inPvz, lastN, page, limit)
 	if err != nil {
-		return err
+		return mapError(err)
 	}
 
 	if len(orders) == 0 {
 		fmt.Println("No orders found for this receiver with the given criteria.")
 	} else {
 		for _, order := range orders {
-			fmt.Printf("Order: %d Reciever: %d Status: %s Storage Limit: %s\n",
+			fmt.Printf("Order: %d Receiver: %d Status: %s Storage Limit: %s\n",
 				order.OrderID,
 				order.ReceiverID,
 				order.GetStatusString(),
@@ -287,8 +268,14 @@ func (a *CLIAdapter) ListOrdersComm(cmd *cobra.Command, args []string) error {
 }
 
 func (a *CLIAdapter) GetReturnedOrders(cmd *cobra.Command, args []string) error {
-	page, _ := cmd.Flags().GetUint64("page")
-	limit, _ := cmd.Flags().GetUint64("limit")
+	page, err := cmd.Flags().GetUint64("page")
+	if err != nil {
+		return mapError(fmt.Errorf("flag.GetUint64: %w", err))
+	}
+	limit, err := cmd.Flags().GetUint64("limit")
+	if err != nil {
+		return mapError(fmt.Errorf("flag.GetUint64: %w", err))
+	}
 
 	if page == 0 {
 		page = 1
@@ -299,7 +286,7 @@ func (a *CLIAdapter) GetReturnedOrders(cmd *cobra.Command, args []string) error 
 
 	returnedOrderList, totalItems, err := a.appService.GetReturnedOrders(page, limit)
 	if err != nil {
-		return fmt.Errorf("failed to list returned orders: %w", err)
+		return mapError(err)
 	}
 
 	if len(returnedOrderList) == 0 {
@@ -317,7 +304,7 @@ func (a *CLIAdapter) GetReturnedOrders(cmd *cobra.Command, args []string) error 
 func (a *CLIAdapter) GetOrdersSortedByTime(cmd *cobra.Command, args []string) error {
 	allOrders, err := a.appService.GetOrderHistory()
 	if err != nil {
-		return fmt.Errorf("failed to get order history: %w", err)
+		return mapError(err)
 	}
 
 	if len(allOrders) == 0 {
@@ -336,14 +323,14 @@ func (a *CLIAdapter) GetOrdersSortedByTime(cmd *cobra.Command, args []string) er
 }
 
 func (a *CLIAdapter) ImportOrdersComm(cmd *cobra.Command, args []string) error {
-	filePath, _ := cmd.Flags().GetString("file")
-	if filePath == "" {
-		return fmt.Errorf("missing --file path")
+	filePath, err := cmd.Flags().GetString("file")
+	if err != nil || filePath == "" {
+		return mapError(fmt.Errorf("flag.GetString: %w", err))
 	}
 
 	data, err := os.ReadFile(filePath)
 	if err != nil {
-		return fmt.Errorf("failed to read JSON file '%s': %w", filePath, err)
+		return mapError(fmt.Errorf("os.ReadFile: %w", err))
 	}
 
 	var ordersToImport []struct {
@@ -353,20 +340,19 @@ func (a *CLIAdapter) ImportOrdersComm(cmd *cobra.Command, args []string) error {
 	}
 
 	if err := json.Unmarshal(data, &ordersToImport); err != nil {
-		return fmt.Errorf("failed to parse JSON from file '%s': %w", filePath, err)
+		return mapError(fmt.Errorf("json.Unmarshal: %w", err))
 	}
 
 	importedCount, err := a.appService.ImportOrders(ordersToImport)
-
 	if err != nil {
+		multiErrors := multierr.Errors(err)
+		for _, e := range multiErrors {
+			fmt.Fprintf(cmd.ErrOrStderr(), "%s\n", mapError(e))
+		}
 		if importedCount > 0 {
 			fmt.Printf("IMPORTED: %d orders successfully.\n", importedCount)
 		}
-		multiErrors := multierr.Errors(err)
-		for _, e := range multiErrors {
-			fmt.Fprintf(cmd.ErrOrStderr(), "ERROR: %v\n", e)
-		}
-		return fmt.Errorf("import completed with errors")
+		return mapError(fmt.Errorf("import orders failed"))
 	}
 
 	fmt.Printf("IMPORTED: %d\n", importedCount)
@@ -374,23 +360,24 @@ func (a *CLIAdapter) ImportOrdersComm(cmd *cobra.Command, args []string) error {
 }
 
 func (a *CLIAdapter) ScrollOrdersComm(cmd *cobra.Command, args []string) error {
-	receiverID, _ := cmd.Flags().GetUint64("user-id")
-	limit, _ := cmd.Flags().GetUint64("limit")
-
-	if receiverID == 0 {
-		return fmt.Errorf("missing --user-id")
+	receiverID, err := cmd.Flags().GetUint64("user-id")
+	if err != nil {
+		return mapError(fmt.Errorf("flag.GetUint64: %w", err))
 	}
+	limit, err := cmd.Flags().GetUint64("limit")
+	if err != nil {
+		return mapError(fmt.Errorf("flag.GetUint64: %w", err))
+	}
+
 	if limit == 0 {
 		limit = 20
 	}
 
-	var currentLastID uint64 = 0
+	var currentLastID uint64
 	scanner := bufio.NewScanner(os.Stdin)
-	// инициализация нашего цикла
 	orders, nextLastID, err := a.appService.GetReceiverOrdersScroll(receiverID, currentLastID, limit)
 	if err != nil {
-		fmt.Fprintf(cmd.ErrOrStderr(), "ERROR: %v\n", err)
-		return nil
+		return mapError(err)
 	}
 	a.printScrollOrders(orders, nextLastID)
 	currentLastID = nextLastID
@@ -418,19 +405,12 @@ func (a *CLIAdapter) ScrollOrdersComm(cmd *cobra.Command, args []string) error {
 				fmt.Println("No more orders to display.")
 				continue
 			}
-			// благодаря GetReceiverOrdersScroll находим n = limit заказов и заодно id последнего полученного заказа
-			orders, nextLastID, err = a.appService.GetReceiverOrdersScroll(
-				receiverID,
-				currentLastID,
-				limit,
-			)
+			orders, nextLastID, err = a.appService.GetReceiverOrdersScroll(receiverID, currentLastID, limit)
 			if err != nil {
-				fmt.Fprintf(cmd.ErrOrStderr(), "ERROR: %v\n", err)
-				return nil
+				return mapError(err)
 			}
 			a.printScrollOrders(orders, nextLastID)
 			currentLastID = nextLastID
-
 		case "exit":
 			fmt.Println("Exiting scroll-orders.")
 			return nil
@@ -440,7 +420,7 @@ func (a *CLIAdapter) ScrollOrdersComm(cmd *cobra.Command, args []string) error {
 	}
 
 	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("error reading input: %w", err)
+		return mapError(fmt.Errorf("scanner.Scan: %w", err))
 	}
 	return nil
 }
@@ -450,7 +430,7 @@ func (a *CLIAdapter) printScrollOrders(orders []*domain.Order, nextLastID uint64
 		fmt.Println("No orders found in this batch.")
 	} else {
 		for _, order := range orders {
-			fmt.Printf("ORDER: %d Reciever: %d Status: %s Storage Limit: %s\n",
+			fmt.Printf("ORDER: %d Receiver: %d Status: %s Storage Limit: %s\n",
 				order.OrderID,
 				order.ReceiverID,
 				order.GetStatusString(),
