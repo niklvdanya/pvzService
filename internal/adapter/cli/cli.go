@@ -136,7 +136,12 @@ func (adapter *CLIAdapter) AddComm(cmd *cobra.Command, args []string) error {
 
 	storageUntil, err := time.ParseInLocation("2006-01-02_15:04", storageUntilStr, util.GetMoscowLocation())
 	if err != nil {
-		return fmt.Errorf("invalid storage until time format for Order %d. Expected 2006-01-02_15:04, got '%s': %w", orderID, storageUntilStr, err)
+		return fmt.Errorf(
+			"invalid storage until time format for Order %d. Expected 2006-01-02_15:04, got '%s': %w",
+			orderID,
+			storageUntilStr,
+			err,
+		)
 	}
 
 	err = adapter.appService.AcceptOrder(receiverID, orderID, storageUntil)
@@ -396,7 +401,11 @@ func (adapter *CLIAdapter) ScrollOrdersComm(cmd *cobra.Command, args []string) e
 				continue
 			}
 			// благодаря GetReceiverOrdersScroll находим n = limit заказов и заодно id последнего полученного заказа
-			orders, nextLastID, err = adapter.appService.GetReceiverOrdersScroll(receiverID, currentLastID, limit)
+			orders, nextLastID, err = adapter.appService.GetReceiverOrdersScroll(
+				receiverID,
+				currentLastID,
+				limit,
+			)
 			if err != nil {
 				fmt.Fprintf(cmd.ErrOrStderr(), "ERROR: %v\n", err)
 				return nil
