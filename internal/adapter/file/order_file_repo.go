@@ -9,6 +9,7 @@ import (
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
 )
 
+// вроде бы большой файл, надо делить тоже, но методы сами небольшие
 const (
 	ordersFilePath = "data/orders.json"
 )
