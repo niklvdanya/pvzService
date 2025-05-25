@@ -6,6 +6,8 @@ import (
 	"math/rand"
 	"os"
 	"time"
+
+	"gitlab.ozon.dev/safariproxd/homework/internal/config"
 )
 
 // для генерации тестовых данных
@@ -17,13 +19,14 @@ type OrderData struct {
 
 const (
 	numOrders           = 100
-	outputFilePath      = "data/new_orders.json"
 	baseReceiverID      = 100
 	numReceiverIDs      = 10
 	storageDurationDays = 365
 )
 
 func main() {
+	cfg := config.Default()
+	outputFilePath := cfg.OrdersOutputFile
 	fmt.Printf("Generating %d orders to %s...\n", numOrders, outputFilePath)
 
 	orders := make([]OrderData, numOrders)

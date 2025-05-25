@@ -8,8 +8,9 @@ import (
 	"strings"
 
 	"gitlab.ozon.dev/safariproxd/homework/internal/adapter/cli"
-	"gitlab.ozon.dev/safariproxd/homework/internal/adapter/file"
 	"gitlab.ozon.dev/safariproxd/homework/internal/app"
+	"gitlab.ozon.dev/safariproxd/homework/internal/config"
+	"gitlab.ozon.dev/safariproxd/homework/internal/repository/file"
 
 	"github.com/spf13/cobra"
 )
@@ -25,8 +26,8 @@ var (
 	}
 )
 
-func initLogging() {
-	file, err := os.OpenFile("pvz.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+func initLogging(path string) {
+	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		log.Fatalf("Failed to open log file: %v", err)
 	}
@@ -34,10 +35,11 @@ func initLogging() {
 }
 
 func main() {
-	initLogging()
+	cfg := config.Default()
+	initLogging(cfg.LogFile)
 	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "Enable debug mode")
 
-	orderRepo, err := file.NewFileOrderRepository()
+	orderRepo, err := file.NewFileOrderRepository(cfg.OrderDataFile)
 	if err != nil {
 		log.Fatalf("Failed to initialize file order repository: %v", err)
 	}

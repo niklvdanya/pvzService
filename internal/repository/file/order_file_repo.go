@@ -8,15 +8,15 @@ import (
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
 )
 
-const ordersFilePath = "data/orders.json"
-
 type FileOrderRepository struct {
+	ordersFilePath   string
 	ordersByID       map[uint64]*domain.Order
 	ordersByReceiver map[uint64]map[uint64]struct{}
 }
 
-func NewFileOrderRepository() (*FileOrderRepository, error) {
+func NewFileOrderRepository(path string) (*FileOrderRepository, error) {
 	repo := &FileOrderRepository{
+		ordersFilePath:   path,
 		ordersByID:       make(map[uint64]*domain.Order),
 		ordersByReceiver: make(map[uint64]map[uint64]struct{}),
 	}
@@ -100,7 +100,7 @@ func (r *FileOrderRepository) GetReturnedOrders() ([]*domain.Order, error) {
 }
 
 func (r *FileOrderRepository) loadFromFile() error {
-	data, err := os.ReadFile(ordersFilePath)
+	data, err := os.ReadFile(r.ordersFilePath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil
@@ -134,7 +134,7 @@ func (r *FileOrderRepository) saveToFile() error {
 		return fmt.Errorf("json.Marshal: %w", err)
 	}
 
-	if err := os.WriteFile(ordersFilePath, data, 0644); err != nil {
+	if err := os.WriteFile(r.ordersFilePath, data, 0644); err != nil {
 		return fmt.Errorf("os.WriteFile: %w", err)
 	}
 	return nil

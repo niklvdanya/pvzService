@@ -27,3 +27,4 @@ Stack: ERROR: ORDER_ALREADY_EXISTS: Order 1 already exists
 2025/05/25 17:23:44 Command execution error: unknown flag: --foo
 2025/05/25 17:23:52 Command execution error: time.Parse: parsing time "2025-99-99": month out of range
 2025/05/25 17:24:08 Command execution error: repo.GetByID: Order 1 already exists
+2025/05/25 17:44:39 Command execution error: repo.GetByID: Order 1 already exists
