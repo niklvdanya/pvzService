@@ -35,16 +35,14 @@ func (a *CLIAdapter) ProcessOrders(cmd *cobra.Command, args []string) error {
 		}
 		orderIDs = append(orderIDs, orderID)
 	}
-
-	var processingErr error
 	if action == "issue" {
-		processingErr = a.appService.IssueOrdersToClient(receiverID, orderIDs)
+		err = a.appService.IssueOrdersToClient(receiverID, orderIDs)
 	} else {
-		processingErr = a.appService.ReturnOrdersFromClient(receiverID, orderIDs)
+		err = a.appService.ReturnOrdersFromClient(receiverID, orderIDs)
 	}
 
-	if processingErr != nil {
-		return processingErr
+	if err != nil {
+		return err
 	}
 
 	for _, orderID := range orderIDs {
