@@ -18,9 +18,13 @@ import (
 var (
 	debug   bool
 	rootCmd = &cobra.Command{
-		Short:         "PVZ (Pickup Point) command-line interface",
-		Long:          `A simple command-line interface for managing orders in a pickup point.`,
-		Run:           func(cmd *cobra.Command, args []string) { cmd.Help() },
+		Short: "PVZ (Pickup Point) command-line interface",
+		Long:  `A simple command-line interface for managing orders in a pickup point.`,
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := cmd.Help(); err != nil {
+				log.Printf("Failed to show help: %v", err)
+			}
+		},
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}

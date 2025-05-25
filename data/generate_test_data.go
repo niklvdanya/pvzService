@@ -33,18 +33,12 @@ func main() {
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	now := time.Now()
-	moscowLoc, err := time.LoadLocation("Europe/Moscow")
-	if err != nil {
-		fmt.Printf("Warning: Failed to load Europe/Moscow location, using UTC: %v\n", err)
-		moscowLoc = time.UTC
-	}
 
 	for i := 0; i < numOrders; i++ {
 		orderID := uint64(i + 1)
 		receiverID := baseReceiverID + uint64(r.Intn(numReceiverIDs))
 		randomDays := r.Intn(storageDurationDays)
 		storageUntil := now.Add(time.Duration(randomDays) * 24 * time.Hour)
-		storageUntil = storageUntil.In(moscowLoc)
 
 		orders[i] = OrderData{
 			OrderID:      orderID,
