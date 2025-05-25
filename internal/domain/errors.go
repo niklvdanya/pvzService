@@ -50,7 +50,7 @@ func StorageExpiredError(orderID uint64, storageUntil string) error {
 func ValidationFailedError(message string) error {
 	return Error{
 		Code:    ErrorCodeValidationFailed,
-		Message: fmt.Sprintf("Validation failed: %s", message),
+		Message: message,
 	}
 }
 

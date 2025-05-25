@@ -3,7 +3,6 @@ package cli
 import (
 	"errors"
 	"fmt"
-	"strings"
 
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
 )
@@ -29,16 +28,10 @@ func StorageNotExpiredError(message string) error {
 }
 
 func InternalError(err error) error {
-	return fmt.Errorf("ERROR: INTERNAL_ERROR: unexpected error: %w", err)
+	return fmt.Errorf("ERROR: unexpected error: %w", err)
 }
 
-func MapError(err error) error {
-	if strings.Contains(err.Error(), "invalid flag format") ||
-		strings.Contains(err.Error(), "strconv.ParseUint") ||
-		strings.Contains(err.Error(), "invalid date format") {
-		return ValidationFailedError("Invalid input format")
-	}
-
+func mapError(err error) error {
 	var domainErr domain.Error
 	if errors.As(err, &domainErr) {
 		switch domainErr.Code {
