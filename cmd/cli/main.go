@@ -68,7 +68,7 @@ func main() {
 		rootCmd.SetArgs(strings.Fields(line))
 		if err := rootCmd.Execute(); err != nil {
 			log.Printf("Command execution error: %v", err)
-			fmt.Fprintf(os.Stderr, "%s\n", err)
+			fmt.Fprintf(os.Stderr, "%s\n", cli.MapError(err))
 			if debug {
 				fmt.Fprintf(os.Stderr, "DEBUG: %v\n", err)
 			}

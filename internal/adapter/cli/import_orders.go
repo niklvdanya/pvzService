@@ -6,18 +6,17 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"go.uber.org/multierr"
 )
 
 func (a *CLIAdapter) ImportOrdersComm(cmd *cobra.Command, args []string) error {
 	filePath, err := cmd.Flags().GetString("file")
 	if err != nil || filePath == "" {
-		return mapError(fmt.Errorf("flag.GetString: %w", err))
+		return fmt.Errorf("flag.GetString: %w", err)
 	}
 
 	data, err := os.ReadFile(filePath)
 	if err != nil {
-		return mapError(fmt.Errorf("os.ReadFile: %w", err))
+		return fmt.Errorf("os.ReadFile: %w", err)
 	}
 
 	var ordersToImport []struct {
@@ -27,19 +26,15 @@ func (a *CLIAdapter) ImportOrdersComm(cmd *cobra.Command, args []string) error {
 	}
 
 	if err := json.Unmarshal(data, &ordersToImport); err != nil {
-		return mapError(fmt.Errorf("json.Unmarshal: %w", err))
+		return fmt.Errorf("json.Unmarshal: %w", err)
 	}
 
 	importedCount, err := a.appService.ImportOrders(ordersToImport)
 	if err != nil {
-		multiErrors := multierr.Errors(err)
-		for _, e := range multiErrors {
-			fmt.Fprintf(cmd.ErrOrStderr(), "%s\n", mapError(e))
-		}
 		if importedCount > 0 {
 			fmt.Printf("IMPORTED: %d orders successfully.\n", importedCount)
 		}
-		return mapError(fmt.Errorf("import orders failed"))
+		return err
 	}
 
 	fmt.Printf("IMPORTED: %d\n", importedCount)

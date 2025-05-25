@@ -9,27 +9,27 @@ import (
 func (a *CLIAdapter) ListOrdersComm(cmd *cobra.Command, args []string) error {
 	receiverID, err := cmd.Flags().GetUint64("user-id")
 	if err != nil {
-		return mapError(fmt.Errorf("flag.GetUint64: %w", err))
+		return fmt.Errorf("flag.GetUint64: %w", err)
 	}
 	inPvz, err := cmd.Flags().GetBool("in-pvz")
 	if err != nil {
-		return mapError(fmt.Errorf("flag.GetBool: %w", err))
+		return fmt.Errorf("flag.GetBool: %w", err)
 	}
 	lastN, err := cmd.Flags().GetUint64("last")
 	if err != nil {
-		return mapError(fmt.Errorf("flag.GetUint64: %w", err))
+		return fmt.Errorf("flag.GetUint64: %w", err)
 	}
 	page, err := cmd.Flags().GetUint64("page")
 	if err != nil {
-		return mapError(fmt.Errorf("flag.GetUint64: %w", err))
+		return fmt.Errorf("flag.GetUint64: %w", err)
 	}
 	limit, err := cmd.Flags().GetUint64("limit")
 	if err != nil {
-		return mapError(fmt.Errorf("flag.GetUint64: %w", err))
+		return fmt.Errorf("flag.GetUint64: %w", err)
 	}
 
 	if lastN > 0 && (page > 0 || limit > 0) {
-		return mapError(fmt.Errorf("invalid flags combination"))
+		return fmt.Errorf("invalid flags combination")
 	}
 
 	if page == 0 {
@@ -41,7 +41,7 @@ func (a *CLIAdapter) ListOrdersComm(cmd *cobra.Command, args []string) error {
 
 	orders, totalItems, err := a.appService.GetReceiverOrders(receiverID, inPvz, lastN, page, limit)
 	if err != nil {
-		return mapError(err)
+		return err
 	}
 
 	if len(orders) == 0 {

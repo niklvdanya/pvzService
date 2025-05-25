@@ -9,11 +9,11 @@ import (
 func (a *CLIAdapter) GetReturnedOrders(cmd *cobra.Command, args []string) error {
 	page, err := cmd.Flags().GetUint64("page")
 	if err != nil {
-		return mapError(fmt.Errorf("flag.GetUint64: %w", err))
+		return fmt.Errorf("flag.GetUint64: %w", err)
 	}
 	limit, err := cmd.Flags().GetUint64("limit")
 	if err != nil {
-		return mapError(fmt.Errorf("flag.GetUint64: %w", err))
+		return fmt.Errorf("flag.GetUint64: %w", err)
 	}
 
 	if page == 0 {
@@ -25,7 +25,7 @@ func (a *CLIAdapter) GetReturnedOrders(cmd *cobra.Command, args []string) error 
 
 	returnedOrderList, totalItems, err := a.appService.GetReturnedOrders(page, limit)
 	if err != nil {
-		return mapError(err)
+		return err
 	}
 
 	if len(returnedOrderList) == 0 {
@@ -43,7 +43,7 @@ func (a *CLIAdapter) GetReturnedOrders(cmd *cobra.Command, args []string) error 
 func (a *CLIAdapter) GetOrdersSortedByTime(cmd *cobra.Command, args []string) error {
 	allOrders, err := a.appService.GetOrderHistory()
 	if err != nil {
-		return mapError(err)
+		return err
 	}
 
 	if len(allOrders) == 0 {

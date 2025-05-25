@@ -1,0 +1,29 @@
+2025/05/25 15:59:05 Command execution error: ERROR: ORDER_ALREADY_EXISTS: Order 1 already exists
+2025/05/25 16:34:46 Internal error: ERROR: ORDER_ALREADY_EXISTS: Order 1 already exists
+Stack: ERROR: ORDER_ALREADY_EXISTS: Order 1 already exists
+2025/05/25 16:38:08 Internal error: ERROR: ORDER_ALREADY_EXISTS: Order 1 already exists
+Stack: ERROR: ORDER_ALREADY_EXISTS: Order 1 already exists
+2025/05/25 16:42:53 Internal error: ERROR: unexpected error: ERROR: ORDER_ALREADY_EXISTS: Order 1 already exists
+2025/05/25 16:44:29 Internal error: ERROR: unexpected error: ERROR: ORDER_ALREADY_EXISTS: Order 1 already exists
+2025/05/25 16:45:08 Command execution error: ERROR: ORDER_ALREADY_EXISTS: Order 1 already exists
+2025/05/25 16:54:19 Command execution error: repo.GetByID: Order 1 already exists
+2025/05/25 17:03:02 Command execution error: repo.GetByID: Order 1 already exists
+2025/05/25 17:05:03 Command execution error: invalid argument "invalid" for "--user-id" flag: strconv.ParseUint: parsing "invalid": invalid syntax
+2025/05/25 17:05:13 Command execution error: required flag(s) "user-id" not set
+2025/05/25 17:06:24 Command execution error: required flag(s) "user-id" not set
+2025/05/25 17:06:32 Command execution error: time.Parse: parsing time "2025-99-99": month out of range
+2025/05/25 17:07:10 Command execution error: process orders failed
+2025/05/25 17:12:09 Command execution error: repo.GetByID: Order 1 already exists
+2025/05/25 17:14:37 Command execution error: repo.GetByID: getID: Entity "Order" with ID 999 not found
+2025/05/25 17:14:50 Command execution error: strconv.ParseUint: strconv.ParseUint: parsing "": invalid syntax
+2025/05/25 17:15:04 Command execution error: repo.GetByID: getID: Entity "Order" with ID 999 not found; repo.GetByID: getID: Entity "Order" with ID 1000 not found
+2025/05/25 17:17:27 Command execution error: repo.GetByID: getID: Entity "Order" with ID 999 not found; repo.GetByID: getID: Entity "Order" with ID 1000 not found
+2025/05/25 17:18:08 Command execution error: repo.GetByID: getID: Entity "Order" with ID 999 not found; repo.GetByID: getID: Entity "Order" with ID 1000 not found
+2025/05/25 17:18:15 Command execution error: validation: storage period already expired (current: 2025-05-25, provided: 2020-01-01)
+2025/05/25 17:18:49 Command execution error: invalid argument "--order-id" for "--user-id" flag: strconv.ParseUint: parsing "--order-id": invalid syntax
+2025/05/25 17:22:44 Command execution error: invalid argument "--order-id" for "--user-id" flag: strconv.ParseUint: parsing "--order-id": invalid syntax
+2025/05/25 17:23:28 Command execution error: invalid argument "invalid" for "--user-id" flag: strconv.ParseUint: parsing "invalid": invalid syntax
+2025/05/25 17:23:36 Command execution error: required flag(s) "user-id" not set
+2025/05/25 17:23:44 Command execution error: unknown flag: --foo
+2025/05/25 17:23:52 Command execution error: time.Parse: parsing time "2025-99-99": month out of range
+2025/05/25 17:24:08 Command execution error: repo.GetByID: Order 1 already exists

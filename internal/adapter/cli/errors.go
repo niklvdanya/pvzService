@@ -3,8 +3,10 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
+	"go.uber.org/multierr"
 )
 
 func NotFoundErrorError(message string) error {
@@ -28,10 +30,37 @@ func StorageNotExpiredError(message string) error {
 }
 
 func InternalError(err error) error {
-	return fmt.Errorf("ERROR: unexpected error: %w", err)
+	return fmt.Errorf("INTERNAL ERROR: %w", err)
 }
 
-func mapError(err error) error {
+func MapError(err error) error {
+	errs := multierr.Errors(err)
+	if len(errs) > 1 {
+		var userMsgs []string
+		for _, e := range errs {
+			userMsgs = append(userMsgs, MapError(e).Error())
+		}
+		return fmt.Errorf("%s", strings.Join(userMsgs, "\n"))
+	}
+
+	if err != nil {
+		msg := err.Error()
+		switch {
+		case strings.Contains(msg, "invalid argument") && strings.Contains(msg, "--user-id"):
+			return ValidationFailedError("Invalid value for flag --user-id")
+		case strings.Contains(msg, "invalid argument") && strings.Contains(msg, "--order-id"):
+			return ValidationFailedError("Invalid value for flag --order-id")
+		case strings.Contains(msg, "invalid argument"):
+			return ValidationFailedError("Invalid value for one of the flags")
+		case strings.Contains(msg, "flag needs an argument"):
+			return ValidationFailedError("Missing value for a required flag")
+		case strings.Contains(msg, "unknown flag"):
+			return ValidationFailedError("Unknown flag")
+		case strings.Contains(msg, "parsing"):
+			return ValidationFailedError("Failed to parse flag value")
+		}
+	}
+
 	var domainErr domain.Error
 	if errors.As(err, &domainErr) {
 		switch domainErr.Code {

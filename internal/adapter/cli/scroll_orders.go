@@ -13,11 +13,11 @@ import (
 func (a *CLIAdapter) ScrollOrdersComm(cmd *cobra.Command, args []string) error {
 	receiverID, err := cmd.Flags().GetUint64("user-id")
 	if err != nil {
-		return mapError(fmt.Errorf("flag.GetUint64: %w", err))
+		return fmt.Errorf("flag.GetUint64: %w", err)
 	}
 	limit, err := cmd.Flags().GetUint64("limit")
 	if err != nil {
-		return mapError(fmt.Errorf("flag.GetUint64: %w", err))
+		return fmt.Errorf("flag.GetUint64: %w", err)
 	}
 
 	if limit == 0 {
@@ -28,7 +28,7 @@ func (a *CLIAdapter) ScrollOrdersComm(cmd *cobra.Command, args []string) error {
 	scanner := bufio.NewScanner(os.Stdin)
 	orders, nextLastID, err := a.appService.GetReceiverOrdersScroll(receiverID, currentLastID, limit)
 	if err != nil {
-		return mapError(err)
+		return err
 	}
 	a.printScrollOrders(orders, nextLastID)
 	currentLastID = nextLastID
@@ -58,7 +58,7 @@ func (a *CLIAdapter) ScrollOrdersComm(cmd *cobra.Command, args []string) error {
 			}
 			orders, nextLastID, err = a.appService.GetReceiverOrdersScroll(receiverID, currentLastID, limit)
 			if err != nil {
-				return mapError(err)
+				return err
 			}
 			a.printScrollOrders(orders, nextLastID)
 			currentLastID = nextLastID
@@ -71,7 +71,7 @@ func (a *CLIAdapter) ScrollOrdersComm(cmd *cobra.Command, args []string) error {
 	}
 
 	if err := scanner.Err(); err != nil {
-		return mapError(fmt.Errorf("scanner.Scan: %w", err))
+		return fmt.Errorf("scanner.Scan: %w", err)
 	}
 	return nil
 }
