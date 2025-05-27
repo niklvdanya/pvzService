@@ -33,12 +33,12 @@ func InternalError(err error) error {
 	return fmt.Errorf("INTERNAL ERROR: %w", err)
 }
 
-func MapError(err error) error {
+func mapError(err error) error {
 	errs := multierr.Errors(err)
 	if len(errs) > 1 {
 		var userMsgs []string
 		for _, e := range errs {
-			userMsgs = append(userMsgs, MapError(e).Error())
+			userMsgs = append(userMsgs, mapError(e).Error())
 		}
 		return fmt.Errorf("%s", strings.Join(userMsgs, "\n"))
 	}

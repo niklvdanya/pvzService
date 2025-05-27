@@ -1,8 +1,14 @@
 package cli
 
 import (
+	"bufio"
+	"fmt"
+	"log"
+	"os"
+	"strings"
 	"time"
 
+	"github.com/spf13/cobra"
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
 )
 
@@ -24,8 +30,49 @@ type OrderService interface {
 
 type CLIAdapter struct {
 	appService OrderService
+	debug      bool
 }
 
-func NewCLIAdapter(appService OrderService) *CLIAdapter {
-	return &CLIAdapter{appService: appService}
+func NewCLIAdapter(appService OrderService, rootCmd *cobra.Command, debugMode bool) *CLIAdapter {
+	a := &CLIAdapter{
+		appService: appService,
+		debug:      debugMode,
+	}
+	a.registerCommands(rootCmd)
+	return a
+}
+
+func (a *CLIAdapter) Run(rootCmd *cobra.Command) error {
+	fmt.Println("Welcome to PVZ system.")
+	scanner := bufio.NewScanner(os.Stdin)
+	for {
+		fmt.Print("pvz> ")
+
+		if !scanner.Scan() {
+			break
+		}
+
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+
+		if line == "exit" {
+			fmt.Println("Exiting PVZ system.")
+			os.Exit(0)
+		}
+
+		rootCmd.SetArgs(strings.Fields(line))
+		if err := rootCmd.Execute(); err != nil {
+			log.Printf("Command execution error: %v", err)
+			fmt.Fprintf(os.Stderr, "%s\n", mapError(err))
+			if a.debug {
+				fmt.Fprintf(os.Stderr, "DEBUG: %v\n", err)
+			}
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("error reading from stdin: %w", err)
+	}
+	return nil
 }

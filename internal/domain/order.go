@@ -23,6 +23,12 @@ type Order struct {
 	LastUpdateTime time.Time
 }
 
+var OrdersToImport []struct {
+	OrderID      uint64 `json:"order_id"`
+	ReceiverID   uint64 `json:"receiver_id"`
+	StorageUntil string `json:"storage_until"`
+}
+
 func (o Order) GetStatusString() string {
 	switch o.Status {
 	case StatusInStorage:

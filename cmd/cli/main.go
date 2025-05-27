@@ -1,11 +1,8 @@
 package main
 
 import (
-	"bufio"
-	"fmt"
 	"log"
 	"os"
-	"strings"
 
 	"gitlab.ozon.dev/safariproxd/homework/internal/adapter/cli"
 	"gitlab.ozon.dev/safariproxd/homework/internal/app"
@@ -48,39 +45,10 @@ func main() {
 		log.Fatalf("Failed to initialize file order repository: %v", err)
 	}
 	pvzService := app.NewPVZService(orderRepo)
-	cliAdapter := cli.NewCLIAdapter(pvzService)
 
-	cliAdapter.RegisterCommands(rootCmd)
+	cliAdapter := cli.NewCLIAdapter(pvzService, rootCmd, debug)
 
-	fmt.Println("Welcome to PVZ system.")
-	scanner := bufio.NewScanner(os.Stdin)
-	for {
-		fmt.Print("pvz> ")
-
-		if !scanner.Scan() {
-			break
-		}
-
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
-			continue
-		}
-
-		if line == "exit" {
-			fmt.Println("Exiting PVZ system.")
-			os.Exit(0)
-		}
-
-		rootCmd.SetArgs(strings.Fields(line))
-		if err := rootCmd.Execute(); err != nil {
-			log.Printf("Command execution error: %v", err)
-			fmt.Fprintf(os.Stderr, "%s\n", cli.MapError(err))
-			if debug {
-				fmt.Fprintf(os.Stderr, "DEBUG: %v\n", err)
-			}
-		}
-	}
-	if err := scanner.Err(); err != nil {
-		log.Fatalf("Error reading from stdin: %v", err)
+	if err := cliAdapter.Run(rootCmd); err != nil {
+		log.Fatalf("CLI exited with error: %v", err)
 	}
 }

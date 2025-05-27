@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
 )
 
 func (a *CLIAdapter) ImportOrdersComm(cmd *cobra.Command, args []string) error {
@@ -19,17 +20,11 @@ func (a *CLIAdapter) ImportOrdersComm(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("os.ReadFile: %w", err)
 	}
 
-	var ordersToImport []struct {
-		OrderID      uint64 `json:"order_id"`
-		ReceiverID   uint64 `json:"receiver_id"`
-		StorageUntil string `json:"storage_until"`
-	}
-
-	if err := json.Unmarshal(data, &ordersToImport); err != nil {
+	if err := json.Unmarshal(data, &domain.OrdersToImport); err != nil {
 		return fmt.Errorf("json.Unmarshal: %w", err)
 	}
 
-	importedCount, err := a.appService.ImportOrders(ordersToImport)
+	importedCount, err := a.appService.ImportOrders(domain.OrdersToImport)
 	if err != nil {
 		if importedCount > 0 {
 			fmt.Printf("IMPORTED: %d orders successfully.\n", importedCount)

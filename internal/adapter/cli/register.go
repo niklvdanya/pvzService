@@ -2,7 +2,7 @@ package cli
 
 import "github.com/spf13/cobra"
 
-func (a *CLIAdapter) RegisterCommands(rootCmd *cobra.Command) {
+func (a *CLIAdapter) registerCommands(rootCmd *cobra.Command) {
 	acceptOrderCmd := &cobra.Command{
 		Use:   "accept-order",
 		Short: "Accepts an order from a courier.",
