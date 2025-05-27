@@ -1,3 +1,9 @@
+ifneq ("$(wildcard tutor_makefile.mk)","")
+include tutor_makefile.mk
+endif
+# пожалуйста, не удаляйте и не перемещайте этот импорт, он помогает вашему верному тьютору быстрее смотреть ваше дз
+# вы можете описать ваш собственный makefile ниже
+
 APP_NAME := pvz
 BUILD_DIR := bin
 MAIN_PATH := cmd/cli/main.go
