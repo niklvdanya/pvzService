@@ -19,9 +19,6 @@ func (s *PVZService) AcceptOrder(receiverID, orderID uint64, storageUntil time.T
 	if err == nil {
 		return fmt.Errorf("repo.GetByID: %w", domain.OrderAlreadyExistsError(orderID))
 	}
-	if !isNotFoundError(err) {
-		return fmt.Errorf("repo.GetByID: %w", err)
-	}
 
 	order := &domain.Order{
 		OrderID:        orderID,

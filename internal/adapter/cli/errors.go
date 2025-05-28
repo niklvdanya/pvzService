@@ -84,6 +84,8 @@ func mapError(err error) error {
 			return StorageNotExpiredError(domainErr.Message)
 		case domain.ErrorCodeUnavaliableReturned:
 			return ValidationFailedError(domainErr.Message)
+		case domain.ErrorCodeNilOrder:
+			return ValidationFailedError(domainErr.Message)
 		default:
 			return InternalError(err)
 		}

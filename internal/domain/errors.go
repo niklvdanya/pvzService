@@ -15,6 +15,7 @@ const (
 	ErrorCodeReturnPeriodExpired    ErrorCode = 8
 	ErrorCodeStorageNotExpired      ErrorCode = 9
 	ErrorCodeUnavaliableReturned    ErrorCode = 10
+	ErrorCodeNilOrder               ErrorCode = 11
 )
 
 type Error struct {
@@ -93,5 +94,12 @@ func UnavaliableReturnedOrderError(orderID uint64) error {
 	return Error{
 		Code:    ErrorCodeUnavaliableReturned,
 		Message: fmt.Sprintf("Order %d is an unavailable returned order", orderID),
+	}
+}
+
+func NilOrderError(orderID uint64) error {
+	return Error{
+		Code:    ErrorCodeNilOrder,
+		Message: fmt.Sprintf("Order %d is nil", orderID),
 	}
 }
