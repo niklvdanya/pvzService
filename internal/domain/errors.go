@@ -16,6 +16,8 @@ const (
 	ErrorCodeStorageNotExpired      ErrorCode = 9
 	ErrorCodeUnavaliableReturned    ErrorCode = 10
 	ErrorCodeNilOrder               ErrorCode = 11
+	ErrorCodeInvalidPackage         ErrorCode = 12
+	ErrorCodeWeightTooHeavy         ErrorCode = 13
 )
 
 type Error struct {
@@ -101,5 +103,19 @@ func NilOrderError(orderID uint64) error {
 	return Error{
 		Code:    ErrorCodeNilOrder,
 		Message: fmt.Sprintf("Order %d is nil", orderID),
+	}
+}
+
+func InvalidPackageError(packageType string) error {
+	return Error{
+		Code:    ErrorCodeInvalidPackage,
+		Message: fmt.Sprintf("Invalid package type: %s", packageType),
+	}
+}
+
+func WeightTooHeavyError(packageType string, weight float64, maxWeight float64) error {
+	return Error{
+		Code:    ErrorCodeWeightTooHeavy,
+		Message: fmt.Sprintf("Weight %.2f kg exceeds maximum allowed for %s (%.2f kg)", weight, packageType, maxWeight),
 	}
 }

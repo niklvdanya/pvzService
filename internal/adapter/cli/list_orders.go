@@ -48,11 +48,18 @@ func (a *CLIAdapter) ListOrdersComm(cmd *cobra.Command, args []string) error {
 		fmt.Println("No orders found for this receiver with the given criteria.")
 	} else {
 		for _, order := range orders {
-			fmt.Printf("Order: %d Receiver: %d Status: %s Storage Limit: %s\n",
+			packageType := order.PackageType
+			if packageType == "" {
+				packageType = "none"
+			}
+			fmt.Printf("Order: %d Receiver: %d Status: %s Storage Limit: %s Package: %s Weight: %.2f Price: %.2f\n",
 				order.OrderID,
 				order.ReceiverID,
 				order.GetStatusString(),
 				order.StorageUntil.Format("2006-01-02"),
+				packageType,
+				order.Weight,
+				order.Price,
 			)
 		}
 	}

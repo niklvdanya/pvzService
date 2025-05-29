@@ -8,9 +8,12 @@ import (
 )
 
 func (s *PVZService) ImportOrders(orders []struct {
-	OrderID      uint64 `json:"order_id"`
-	ReceiverID   uint64 `json:"receiver_id"`
-	StorageUntil string `json:"storage_until"`
+	OrderID      uint64  `json:"order_id"`
+	ReceiverID   uint64  `json:"receiver_id"`
+	StorageUntil string  `json:"storage_until"`
+	PackageType  string  `json:"package_type"`
+	Weight       float64 `json:"weight"`
+	Price        float64 `json:"price"`
 }) (uint64, error) {
 	var combinedErr error
 	importedCount := uint64(0)
@@ -21,7 +24,7 @@ func (s *PVZService) ImportOrders(orders []struct {
 			continue
 		}
 
-		err = s.AcceptOrder(rawOrder.ReceiverID, rawOrder.OrderID, storageUntil)
+		_, err = s.AcceptOrder(rawOrder.ReceiverID, rawOrder.OrderID, storageUntil, rawOrder.Weight, rawOrder.Price, rawOrder.PackageType)
 		if err != nil {
 			combinedErr = multierr.Append(combinedErr, fmt.Errorf("AcceptOrder: %w", err))
 			continue

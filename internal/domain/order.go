@@ -21,12 +21,18 @@ type Order struct {
 	Status         OrderStatus
 	AcceptTime     time.Time
 	LastUpdateTime time.Time
+	PackageType    string
+	Weight         float64
+	Price          float64
 }
 
 var OrdersToImport []struct {
-	OrderID      uint64 `json:"order_id"`
-	ReceiverID   uint64 `json:"receiver_id"`
-	StorageUntil string `json:"storage_until"`
+	OrderID      uint64  `json:"order_id"`
+	ReceiverID   uint64  `json:"receiver_id"`
+	StorageUntil string  `json:"storage_until"`
+	PackageType  string  `json:"package_type"`
+	Weight       float64 `json:"weight"`
+	Price        float64 `json:"price"`
 }
 
 func (o Order) GetStatusString() string {

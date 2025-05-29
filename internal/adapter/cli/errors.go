@@ -29,6 +29,10 @@ func StorageNotExpiredError(message string) error {
 	return fmt.Errorf("ERROR: STORAGE_NOT_EXPIRED: %s", message)
 }
 
+func WeightTooHeavyError(message string) error {
+	return fmt.Errorf("ERROR: WEIGHT_TOO_HEAVY: %s", message)
+}
+
 func InternalError(err error) error {
 	return fmt.Errorf("INTERNAL ERROR: %w", err)
 }
@@ -50,6 +54,10 @@ func mapError(err error) error {
 			return ValidationFailedError("Invalid value for flag --user-id")
 		case strings.Contains(msg, "invalid argument") && strings.Contains(msg, "--order-id"):
 			return ValidationFailedError("Invalid value for flag --order-id")
+		case strings.Contains(msg, "invalid argument") && strings.Contains(msg, "--weight"):
+			return ValidationFailedError("Invalid value for flag --weight")
+		case strings.Contains(msg, "invalid argument") && strings.Contains(msg, "--price"):
+			return ValidationFailedError("Invalid value for flag --price")
 		case strings.Contains(msg, "invalid argument"):
 			return ValidationFailedError("Invalid value for one of the flags")
 		case strings.Contains(msg, "flag needs an argument"):
@@ -86,6 +94,10 @@ func mapError(err error) error {
 			return ValidationFailedError(domainErr.Message)
 		case domain.ErrorCodeNilOrder:
 			return ValidationFailedError(domainErr.Message)
+		case domain.ErrorCodeInvalidPackage:
+			return ValidationFailedError(domainErr.Message)
+		case domain.ErrorCodeWeightTooHeavy:
+			return WeightTooHeavyError(domainErr.Message)
 		default:
 			return InternalError(err)
 		}

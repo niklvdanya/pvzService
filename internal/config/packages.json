@@ -1,0 +1,7 @@
+{
+    "bag": [{"max_weight": 10, "price": 5}],
+    "box": [{"max_weight": 30, "price": 20}],
+    "film": [{"max_weight": 0, "price": 1}],
+    "bag+film": [{"max_weight": 10, "price": 5}, {"max_weight": 0, "price": 1}],
+    "box+film": [{"max_weight": 30, "price": 20}, {"max_weight": 0, "price": 1}]
+}
