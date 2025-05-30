@@ -38,35 +38,25 @@ func InternalError(err error) error {
 }
 
 func mapError(err error) error {
-	errs := multierr.Errors(err)
-	if len(errs) > 1 {
+	if err == nil {
+		return nil
+	}
+
+	// для вложенных ошибок multierr
+	if errs := multierr.Errors(err); len(errs) > 1 {
 		var userMsgs []string
 		for _, e := range errs {
-			userMsgs = append(userMsgs, mapError(e).Error())
+			userMsgs = append(userMsgs, processSingleError(e).Error())
 		}
 		return fmt.Errorf("%s", strings.Join(userMsgs, "\n"))
 	}
 
-	if err != nil {
-		msg := err.Error()
-		switch {
-		case strings.Contains(msg, "invalid argument") && strings.Contains(msg, "--user-id"):
-			return ValidationFailedError("Invalid value for flag --user-id")
-		case strings.Contains(msg, "invalid argument") && strings.Contains(msg, "--order-id"):
-			return ValidationFailedError("Invalid value for flag --order-id")
-		case strings.Contains(msg, "invalid argument") && strings.Contains(msg, "--weight"):
-			return ValidationFailedError("Invalid value for flag --weight")
-		case strings.Contains(msg, "invalid argument") && strings.Contains(msg, "--price"):
-			return ValidationFailedError("Invalid value for flag --price")
-		case strings.Contains(msg, "invalid argument"):
-			return ValidationFailedError("Invalid value for one of the flags")
-		case strings.Contains(msg, "flag needs an argument"):
-			return ValidationFailedError("Missing value for a required flag")
-		case strings.Contains(msg, "unknown flag"):
-			return ValidationFailedError("Unknown flag")
-		case strings.Contains(msg, "parsing"):
-			return ValidationFailedError("Failed to parse flag value")
-		}
+	return processSingleError(err)
+}
+
+func processSingleError(err error) error {
+	if err == nil {
+		return nil
 	}
 
 	var domainErr domain.Error
@@ -102,5 +92,28 @@ func mapError(err error) error {
 			return InternalError(err)
 		}
 	}
+
+	// для "сломанных" запросов по типу
+	// accept-order --user-id --order-id=123 --expires 2025-05-31 --weight=10kg --price=1000
+	msg := err.Error()
+	switch {
+	case strings.Contains(msg, "invalid argument") && strings.Contains(msg, "--user-id"):
+		return ValidationFailedError("Invalid value for flag --user-id")
+	case strings.Contains(msg, "invalid argument") && strings.Contains(msg, "--order-id"):
+		return ValidationFailedError("Invalid value for flag --order-id")
+	case strings.Contains(msg, "invalid argument") && strings.Contains(msg, "--weight"):
+		return ValidationFailedError("Invalid value for flag --weight")
+	case strings.Contains(msg, "invalid argument") && strings.Contains(msg, "--price"):
+		return ValidationFailedError("Invalid value for flag --price")
+	case strings.Contains(msg, "invalid argument"):
+		return ValidationFailedError("Invalid value for one of the flags")
+	case strings.Contains(msg, "flag needs an argument"):
+		return ValidationFailedError("Missing value for a required flag")
+	case strings.Contains(msg, "unknown flag"):
+		return ValidationFailedError("Unknown flag")
+	case strings.Contains(msg, "parsing"):
+		return ValidationFailedError("Failed to parse flag value")
+	}
+
 	return InternalError(err)
 }
