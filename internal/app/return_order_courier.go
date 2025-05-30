@@ -19,7 +19,7 @@ func (s *PVZService) ReturnOrderToDelivery(orderID uint64) error {
 	}
 	if time.Now().Before(order.StorageUntil) {
 		return fmt.Errorf("validation: %w", domain.StorageNotExpiredError(
-			orderID, order.StorageUntil.Format("2006-01-02")))
+			orderID, domain.MapTimeToString(order.StorageUntil)))
 	}
 
 	if order.Status == domain.StatusInStorage {

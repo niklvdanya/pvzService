@@ -6,14 +6,13 @@ import (
 	"log"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/spf13/cobra"
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
 )
 
 type OrderService interface {
-	AcceptOrder(receiverID, orderID uint64, storageUntil time.Time, weight, price float64, packageType string) (float64, error)
+	AcceptOrder(req domain.AcceptOrderRequest) (float64, error)
 	ReturnOrderToDelivery(orderID uint64) error
 	IssueOrdersToClient(receiverID uint64, orderIDs []uint64) error
 	ReturnOrdersFromClient(receiverID uint64, orderIDs []uint64) error
@@ -21,14 +20,7 @@ type OrderService interface {
 	GetReceiverOrdersScroll(receiverID uint64, lastID, limit uint64) ([]*domain.Order, uint64, error)
 	GetReturnedOrders(page, limit uint64) ([]*domain.Order, uint64, error)
 	GetOrderHistory() ([]*domain.Order, error)
-	ImportOrders(orders []struct {
-		OrderID      uint64  `json:"order_id"`
-		ReceiverID   uint64  `json:"receiver_id"`
-		StorageUntil string  `json:"storage_until"`
-		PackageType  string  `json:"package_type"`
-		Weight       float64 `json:"weight"`
-		Price        float64 `json:"price"`
-	}) (uint64, error)
+	ImportOrders(orders []domain.OrderToImport) (uint64, error)
 }
 
 type CLIAdapter struct {

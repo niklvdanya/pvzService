@@ -26,13 +26,24 @@ type Order struct {
 	Price          float64
 }
 
-var OrdersToImport []struct {
+type OrderToImport struct {
 	OrderID      uint64  `json:"order_id"`
 	ReceiverID   uint64  `json:"receiver_id"`
 	StorageUntil string  `json:"storage_until"`
 	PackageType  string  `json:"package_type"`
 	Weight       float64 `json:"weight"`
 	Price        float64 `json:"price"`
+}
+
+var OrdersToImport []OrderToImport
+
+type AcceptOrderRequest struct {
+	ReceiverID   uint64
+	OrderID      uint64
+	StorageUntil time.Time
+	Weight       float64
+	Price        float64
+	PackageType  string
 }
 
 func (o Order) GetStatusString() string {

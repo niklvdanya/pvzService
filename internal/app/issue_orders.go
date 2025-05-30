@@ -39,7 +39,7 @@ func (s *PVZService) IssueOrdersToClient(receiverID uint64, orderIDs []uint64) e
 
 		if currentTime.After(order.StorageUntil) {
 			combinedErr = multierr.Append(combinedErr, fmt.Errorf("validation: %w",
-				domain.StorageExpiredError(orderID, order.StorageUntil.Format("2006-01-02"))))
+				domain.StorageExpiredError(orderID, domain.MapTimeToString(order.StorageUntil))))
 			continue
 		}
 

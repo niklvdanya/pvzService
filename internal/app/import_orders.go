@@ -2,29 +2,30 @@ package app
 
 import (
 	"fmt"
-	"time"
 
+	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
 	"go.uber.org/multierr"
 )
 
-func (s *PVZService) ImportOrders(orders []struct {
-	OrderID      uint64  `json:"order_id"`
-	ReceiverID   uint64  `json:"receiver_id"`
-	StorageUntil string  `json:"storage_until"`
-	PackageType  string  `json:"package_type"`
-	Weight       float64 `json:"weight"`
-	Price        float64 `json:"price"`
-}) (uint64, error) {
+func (s *PVZService) ImportOrders(orders []domain.OrderToImport) (uint64, error) {
 	var combinedErr error
 	importedCount := uint64(0)
 	for _, rawOrder := range orders {
-		storageUntil, err := time.Parse("2006-01-02", rawOrder.StorageUntil)
+		storageUntil, err := domain.MapStringToTime(rawOrder.StorageUntil)
 		if err != nil {
 			combinedErr = multierr.Append(combinedErr, fmt.Errorf("time.Parse: %w", err))
 			continue
 		}
 
-		_, err = s.AcceptOrder(rawOrder.ReceiverID, rawOrder.OrderID, storageUntil, rawOrder.Weight, rawOrder.Price, rawOrder.PackageType)
+		req := domain.AcceptOrderRequest{
+			ReceiverID:   rawOrder.ReceiverID,
+			OrderID:      rawOrder.OrderID,
+			StorageUntil: storageUntil,
+			Weight:       rawOrder.Weight,
+			Price:        rawOrder.Price,
+			PackageType:  rawOrder.PackageType,
+		}
+		_, err = s.AcceptOrder(req)
 		if err != nil {
 			combinedErr = multierr.Append(combinedErr, fmt.Errorf("AcceptOrder: %w", err))
 			continue

@@ -2,9 +2,9 @@ package cli
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/spf13/cobra"
+	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
 )
 
 func (a *CLIAdapter) AddComm(cmd *cobra.Command, args []string) error {
@@ -33,12 +33,19 @@ func (a *CLIAdapter) AddComm(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("flag.GetString: %w", err)
 	}
 
-	storageUntil, err := time.Parse("2006-01-02", storageUntilStr)
+	storageUntil, err := domain.MapStringToTime(storageUntilStr)
 	if err != nil {
 		return fmt.Errorf("time.Parse: %w", err)
 	}
-
-	totalPrice, err := a.appService.AcceptOrder(receiverID, orderID, storageUntil, weight, price, packageType)
+	req := domain.AcceptOrderRequest{
+		ReceiverID:   receiverID,
+		OrderID:      orderID,
+		StorageUntil: storageUntil,
+		Weight:       weight,
+		Price:        price,
+		PackageType:  packageType,
+	}
+	totalPrice, err := a.appService.AcceptOrder(req)
 	if err != nil {
 		return err
 	}

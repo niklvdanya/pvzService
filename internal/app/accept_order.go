@@ -7,48 +7,48 @@ import (
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
 )
 
-func (s *PVZService) AcceptOrder(receiverID, orderID uint64, storageUntil time.Time, weight, price float64, packageType string) (float64, error) {
+func (s *PVZService) AcceptOrder(req domain.AcceptOrderRequest) (float64, error) {
 	currentTime := time.Now()
-	if storageUntil.Before(currentTime) {
+	if req.StorageUntil.Before(currentTime) {
 		return 0, fmt.Errorf("validation: %w", domain.ValidationFailedError(
 			fmt.Sprintf("storage period already expired (current: %s, provided: %s)",
-				currentTime.Format("2006-01-02"), storageUntil.Format("2006-01-02"))))
+				domain.MapTimeToString(currentTime), domain.MapTimeToString(req.StorageUntil))))
 	}
-	if weight <= 0 {
+	if req.Weight <= 0 {
 		return 0, fmt.Errorf("validation: %w", domain.ValidationFailedError("weight must be greater than 0"))
 	}
-	if price <= 0 {
+	if req.Price <= 0 {
 		return 0, fmt.Errorf("validation: %w", domain.ValidationFailedError("price must be greater than 0"))
 	}
-	if !s.packageConfig.IsValidPackageType(packageType) {
-		return 0, fmt.Errorf("validation: %w", domain.InvalidPackageError(packageType))
+	if !s.packageConfig.IsValidPackageType(req.PackageType) {
+		return 0, fmt.Errorf("validation: %w", domain.InvalidPackageError(req.PackageType))
 	}
 
-	_, err := s.orderRepo.GetByID(orderID)
+	_, err := s.orderRepo.GetByID(req.OrderID)
 	if err == nil {
-		return 0, fmt.Errorf("repo.GetByID: %w", domain.OrderAlreadyExistsError(orderID))
+		return 0, fmt.Errorf("repo.GetByID: %w", domain.OrderAlreadyExistsError(req.OrderID))
 	}
 
-	totalPrice := price
-	if packageType != "" {
-		rules, _ := s.packageConfig.GetRules(packageType)
+	totalPrice := req.Price
+	if req.PackageType != "" {
+		rules, _ := s.packageConfig.GetRules(req.PackageType)
 		for _, rule := range rules {
-			if rule.MaxWeight > 0 && weight > rule.MaxWeight {
-				return 0, fmt.Errorf("validation: %w", domain.WeightTooHeavyError(packageType, weight, rule.MaxWeight))
+			if rule.MaxWeight > 0 && req.Weight > rule.MaxWeight {
+				return 0, fmt.Errorf("validation: %w", domain.WeightTooHeavyError(req.PackageType, req.Weight, rule.MaxWeight))
 			}
 			totalPrice += rule.Price
 		}
 	}
 
 	order := &domain.Order{
-		OrderID:        orderID,
-		ReceiverID:     receiverID,
-		StorageUntil:   storageUntil,
+		OrderID:        req.OrderID,
+		ReceiverID:     req.ReceiverID,
+		StorageUntil:   req.StorageUntil,
 		Status:         domain.StatusInStorage,
 		AcceptTime:     currentTime,
 		LastUpdateTime: currentTime,
-		PackageType:    packageType,
-		Weight:         weight,
+		PackageType:    req.PackageType,
+		Weight:         req.Weight,
 		Price:          totalPrice,
 	}
 	if err := s.orderRepo.Save(order); err != nil {
