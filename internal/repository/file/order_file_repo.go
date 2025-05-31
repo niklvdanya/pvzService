@@ -48,6 +48,9 @@ func (r *FileOrderRepository) GetByID(orderID uint64) (*domain.Order, error) {
 	if !exists {
 		return nil, fmt.Errorf("getID: %w", domain.EntityNotFoundError("Order", fmt.Sprintf("%d", orderID)))
 	}
+	if order == nil {
+		return nil, fmt.Errorf("getID: %w", domain.NilOrderError(orderID))
+	}
 	return order, nil
 }
 
@@ -59,7 +62,7 @@ func (r *FileOrderRepository) GetByReceiverID(receiverID uint64) ([]*domain.Orde
 
 	orders := make([]*domain.Order, 0, len(orderIDs))
 	for orderID := range orderIDs {
-		if order, exists := r.ordersByID[orderID]; exists && order.IsBelongsToReciever(receiverID) {
+		if order, exists := r.ordersByID[orderID]; exists && order != nil && order.IsBelongsToReciever(receiverID) {
 			orders = append(orders, order)
 		}
 	}
@@ -69,7 +72,9 @@ func (r *FileOrderRepository) GetByReceiverID(receiverID uint64) ([]*domain.Orde
 func (r *FileOrderRepository) GetAllOrders() ([]*domain.Order, error) {
 	orders := make([]*domain.Order, 0, len(r.ordersByID))
 	for _, order := range r.ordersByID {
-		orders = append(orders, order)
+		if order != nil {
+			orders = append(orders, order)
+		}
 	}
 	return orders, nil
 }
@@ -89,10 +94,7 @@ func (r *FileOrderRepository) Update(order *domain.Order) error {
 func (r *FileOrderRepository) GetReturnedOrders() ([]*domain.Order, error) {
 	var returnedOrders []*domain.Order
 	for _, order := range r.ordersByID {
-		// заказ из списка возвратов, если 1) его вернул клиент и он в хранилище
-		// 2) его вернул клиент и он был выдан курьеру
-		// если заказ был принят курьером и сразу выдан обратно, то я такие заказы не считаю возвратами
-		if order.Status == domain.StatusReturnedFromClient || order.Status == domain.StatusGivenToCourier {
+		if order != nil && (order.Status == domain.StatusReturnedFromClient || order.Status == domain.StatusGivenToCourier) {
 			returnedOrders = append(returnedOrders, order)
 		}
 	}
@@ -114,6 +116,9 @@ func (r *FileOrderRepository) loadFromFile() error {
 	}
 
 	for _, order := range orders {
+		if order == nil {
+			continue
+		}
 		r.ordersByID[order.OrderID] = order
 		if _, exists := r.ordersByReceiver[order.ReceiverID]; !exists {
 			r.ordersByReceiver[order.ReceiverID] = make(map[uint64]struct{})
@@ -126,7 +131,9 @@ func (r *FileOrderRepository) loadFromFile() error {
 func (r *FileOrderRepository) saveToFile() error {
 	orders := make([]*domain.Order, 0, len(r.ordersByID))
 	for _, order := range r.ordersByID {
-		orders = append(orders, order)
+		if order != nil {
+			orders = append(orders, order)
+		}
 	}
 
 	data, err := json.MarshalIndent(orders, "", "  ")

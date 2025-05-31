@@ -8,14 +8,8 @@ import (
 	"time"
 
 	"gitlab.ozon.dev/safariproxd/homework/internal/config"
+	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
 )
-
-// для генерации тестовых данных
-type OrderData struct {
-	OrderID      uint64 `json:"order_id"`
-	ReceiverID   uint64 `json:"receiver_id"`
-	StorageUntil string `json:"storage_until"`
-}
 
 const (
 	numOrders           = 100
@@ -24,12 +18,14 @@ const (
 	storageDurationDays = 365
 )
 
+var packageTypes = []string{"bag", "box", "film", "bag+film", "box+film"}
+
 func main() {
 	cfg := config.Default()
 	outputFilePath := cfg.OrdersOutputFile
 	fmt.Printf("Generating %d orders to %s...\n", numOrders, outputFilePath)
 
-	orders := make([]OrderData, numOrders)
+	orders := make([]domain.OrderToImport, numOrders)
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	now := time.Now()
@@ -40,10 +36,17 @@ func main() {
 		randomDays := r.Intn(storageDurationDays)
 		storageUntil := now.Add(time.Duration(randomDays) * 24 * time.Hour)
 
-		orders[i] = OrderData{
+		weight := 0.1 + r.Float64()*19.9
+		price := 100.0 + r.Float64()*4900.0
+		packageType := packageTypes[r.Intn(len(packageTypes))]
+
+		orders[i] = domain.OrderToImport{
 			OrderID:      orderID,
 			ReceiverID:   receiverID,
-			StorageUntil: storageUntil.Format("2006-01-02_15:04"),
+			StorageUntil: storageUntil.Format("2006-01-02"),
+			PackageType:  packageType,
+			Weight:       weight,
+			Price:        price,
 		}
 	}
 
