@@ -1,7 +1,7 @@
 package app
 
 import (
-	"errors"
+	"fmt"
 
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
 )
@@ -16,15 +16,20 @@ type OrderRepository interface {
 }
 
 type PVZService struct {
-	orderRepo OrderRepository
+	orderRepo     OrderRepository
+	packageConfig domain.PackageConfig
 }
 
-func NewPVZService(
-	orderRepo OrderRepository,
-) *PVZService {
-	return &PVZService{
-		orderRepo: orderRepo,
+func NewPVZService(orderRepo OrderRepository, configPath string) (*PVZService, error) {
+	packageConfig, err := domain.LoadPackageConfig(configPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load package config: %w", err)
 	}
+
+	return &PVZService{
+		orderRepo:     orderRepo,
+		packageConfig: packageConfig,
+	}, nil
 }
 
 func paginate[T any](items []T, currentPage, itemsPerPage uint64) []T {
@@ -48,9 +53,4 @@ func paginate[T any](items []T, currentPage, itemsPerPage uint64) []T {
 	}
 
 	return items[startIndex:endIndex]
-}
-
-func isNotFoundError(err error) bool {
-	var domainErr domain.Error
-	return errors.As(err, &domainErr) && domainErr.Code == domain.ErrorCodeNotFound
 }

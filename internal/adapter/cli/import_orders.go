@@ -20,11 +20,12 @@ func (a *CLIAdapter) ImportOrdersComm(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("os.ReadFile: %w", err)
 	}
 
-	if err := json.Unmarshal(data, &domain.OrdersToImport); err != nil {
+	var ordersToImport []domain.OrderToImport
+	if err := json.Unmarshal(data, &ordersToImport); err != nil {
 		return fmt.Errorf("json.Unmarshal: %w", err)
 	}
 
-	importedCount, err := a.appService.ImportOrders(domain.OrdersToImport)
+	importedCount, err := a.appService.ImportOrders(ordersToImport)
 	if err != nil {
 		if importedCount > 0 {
 			fmt.Printf("IMPORTED: %d orders successfully.\n", importedCount)

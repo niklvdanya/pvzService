@@ -2,9 +2,9 @@ package cli
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/spf13/cobra"
+	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
 )
 
 func (a *CLIAdapter) AddComm(cmd *cobra.Command, args []string) error {
@@ -20,16 +20,38 @@ func (a *CLIAdapter) AddComm(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("flag.GetString: %w", err)
 	}
+	weight, err := cmd.Flags().GetFloat64("weight")
+	if err != nil {
+		return fmt.Errorf("flag.GetFloat64: %w", err)
+	}
+	price, err := cmd.Flags().GetFloat64("price")
+	if err != nil {
+		return fmt.Errorf("flag.GetFloat64: %w", err)
+	}
+	packageType, err := cmd.Flags().GetString("package")
+	if err != nil {
+		return fmt.Errorf("flag.GetString: %w", err)
+	}
 
-	storageUntil, err := time.Parse("2006-01-02", storageUntilStr)
+	storageUntil, err := MapStringToTime(storageUntilStr)
 	if err != nil {
 		return fmt.Errorf("time.Parse: %w", err)
 	}
-
-	err = a.appService.AcceptOrder(receiverID, orderID, storageUntil)
+	req := domain.AcceptOrderRequest{
+		ReceiverID:   receiverID,
+		OrderID:      orderID,
+		StorageUntil: storageUntil,
+		Weight:       weight,
+		Price:        price,
+		PackageType:  packageType,
+	}
+	totalPrice, err := a.appService.AcceptOrder(req)
 	if err != nil {
 		return err
 	}
+
 	fmt.Printf("ORDER_ACCEPTED: %d\n", orderID)
+	fmt.Printf("PACKAGE: %s\n", packageType)
+	fmt.Printf("TOTAL_PRICE: %.2f\n", totalPrice)
 	return nil
 }

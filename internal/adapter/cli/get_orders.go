@@ -55,7 +55,7 @@ func (a *CLIAdapter) GetOrdersSortedByTime(cmd *cobra.Command, args []string) er
 		fmt.Printf("HISTORY: %d %s %s\n",
 			order.OrderID,
 			order.GetStatusString(),
-			order.LastUpdateTime.Format("2006-01-02"),
+			MapTimeToString(order.LastUpdateTime),
 		)
 	}
 	return nil

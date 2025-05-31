@@ -11,10 +11,14 @@ func (a *CLIAdapter) registerCommands(rootCmd *cobra.Command) {
 	acceptOrderCmd.Flags().Uint64P("order-id", "", 0, "ID of the order")
 	acceptOrderCmd.Flags().Uint64P("user-id", "", 0, "ID of the receiver")
 	acceptOrderCmd.Flags().StringP("expires", "", "", "Storage expiration date (YYYY-MM-DD)")
-	// в  MapError обрабатываются ошибки, если флаг не указан
+	acceptOrderCmd.Flags().Float64P("weight", "", 0, "Weight of the order in kg")
+	acceptOrderCmd.Flags().Float64P("price", "", 0, "Price of the order in RUB")
+	acceptOrderCmd.Flags().StringP("package", "", "", "Package type: bag, box, film, bag+film, box+film")
 	_ = acceptOrderCmd.MarkFlagRequired("order-id")
 	_ = acceptOrderCmd.MarkFlagRequired("user-id")
 	_ = acceptOrderCmd.MarkFlagRequired("expires")
+	_ = acceptOrderCmd.MarkFlagRequired("weight")
+	_ = acceptOrderCmd.MarkFlagRequired("price")
 	rootCmd.AddCommand(acceptOrderCmd)
 
 	returnOrderCmd := &cobra.Command{

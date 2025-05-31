@@ -44,8 +44,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to initialize file order repository: %v", err)
 	}
-	pvzService := app.NewPVZService(orderRepo)
-
+	pvzService, err := app.NewPVZService(orderRepo, cfg.PackageConfigFile)
+	if err != nil {
+		log.Fatalf("Failed to init PVZ service: %v", err)
+	}
 	cliAdapter := cli.NewCLIAdapter(pvzService, rootCmd, debug)
 
 	if err := cliAdapter.Run(rootCmd); err != nil {

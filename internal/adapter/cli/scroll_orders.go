@@ -81,11 +81,18 @@ func (a *CLIAdapter) printScrollOrders(orders []*domain.Order, nextLastID uint64
 		fmt.Println("No orders found in this batch.")
 	} else {
 		for _, order := range orders {
-			fmt.Printf("ORDER: %d Receiver: %d Status: %s Storage Limit: %s\n",
+			packageType := order.PackageType
+			if packageType == "" {
+				packageType = "none"
+			}
+			fmt.Printf("ORDER: %d Receiver: %d Status: %s Storage Limit: %s Package: %s Weight: %.2f Price: %.2f\n",
 				order.OrderID,
 				order.ReceiverID,
 				order.GetStatusString(),
-				order.StorageUntil.Format("2006-01-02"),
+				MapTimeToString(order.StorageUntil),
+				packageType,
+				order.Weight,
+				order.Price,
 			)
 		}
 	}

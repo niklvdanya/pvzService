@@ -35,6 +35,9 @@ func (r *InMemoryOrderRepository) GetByID(orderID uint64) (*domain.Order, error)
 	if !exists {
 		return nil, fmt.Errorf("get: %w", domain.EntityNotFoundError("Order", fmt.Sprintf("%d", orderID)))
 	}
+	if order == nil {
+		return nil, fmt.Errorf("get: %w", domain.NilOrderError(orderID))
+	}
 	return order, nil
 }
 
@@ -46,7 +49,7 @@ func (r *InMemoryOrderRepository) GetByReceiverID(receiverID uint64) ([]*domain.
 
 	orders := make([]*domain.Order, 0, len(orderIDs))
 	for orderID := range orderIDs {
-		if order, exists := r.ordersByID[orderID]; exists && order.IsBelongsToReciever(receiverID) {
+		if order, exists := r.ordersByID[orderID]; exists && order != nil && order.IsBelongsToReciever(receiverID) {
 			orders = append(orders, order)
 		}
 	}
@@ -56,7 +59,9 @@ func (r *InMemoryOrderRepository) GetByReceiverID(receiverID uint64) ([]*domain.
 func (r *InMemoryOrderRepository) GetAllOrders() ([]*domain.Order, error) {
 	orders := make([]*domain.Order, 0, len(r.ordersByID))
 	for _, order := range r.ordersByID {
-		orders = append(orders, order)
+		if order != nil {
+			orders = append(orders, order)
+		}
 	}
 	return orders, nil
 }
@@ -72,7 +77,7 @@ func (r *InMemoryOrderRepository) Update(order *domain.Order) error {
 func (r *InMemoryOrderRepository) GetReturnedOrders() ([]*domain.Order, error) {
 	var returnedOrders []*domain.Order
 	for _, order := range r.ordersByID {
-		if order.Status == domain.StatusReturnedFromClient || order.Status == domain.StatusGivenToCourier {
+		if order != nil && (order.Status == domain.StatusReturnedFromClient || order.Status == domain.StatusGivenToCourier) {
 			returnedOrders = append(returnedOrders, order)
 		}
 	}
