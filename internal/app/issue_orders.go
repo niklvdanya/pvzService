@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"gitlab.ozon.dev/safariproxd/homework/internal/adapter/cli"
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
 	"go.uber.org/multierr"
 )
@@ -39,7 +40,7 @@ func (s *PVZService) IssueOrdersToClient(receiverID uint64, orderIDs []uint64) e
 
 		if currentTime.After(order.StorageUntil) {
 			combinedErr = multierr.Append(combinedErr, fmt.Errorf("validation: %w",
-				domain.StorageExpiredError(orderID, domain.MapTimeToString(order.StorageUntil))))
+				domain.StorageExpiredError(orderID, cli.MapTimeToString(order.StorageUntil))))
 			continue
 		}
 

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"gitlab.ozon.dev/safariproxd/homework/internal/adapter/cli"
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
 )
 
@@ -19,7 +20,7 @@ func (s *PVZService) ReturnOrderToDelivery(orderID uint64) error {
 	}
 	if time.Now().Before(order.StorageUntil) {
 		return fmt.Errorf("validation: %w", domain.StorageNotExpiredError(
-			orderID, domain.MapTimeToString(order.StorageUntil)))
+			orderID, cli.MapTimeToString(order.StorageUntil)))
 	}
 
 	if order.Status == domain.StatusInStorage {

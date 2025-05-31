@@ -89,7 +89,7 @@ func (a *CLIAdapter) printScrollOrders(orders []*domain.Order, nextLastID uint64
 				order.OrderID,
 				order.ReceiverID,
 				order.GetStatusString(),
-				domain.MapTimeToString(order.StorageUntil),
+				MapTimeToString(order.StorageUntil),
 				packageType,
 				order.Weight,
 				order.Price,

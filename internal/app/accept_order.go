@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"gitlab.ozon.dev/safariproxd/homework/internal/adapter/cli"
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
 )
 
@@ -12,7 +13,7 @@ func (s *PVZService) AcceptOrder(req domain.AcceptOrderRequest) (float64, error)
 	if req.StorageUntil.Before(currentTime) {
 		return 0, fmt.Errorf("validation: %w", domain.ValidationFailedError(
 			fmt.Sprintf("storage period already expired (current: %s, provided: %s)",
-				domain.MapTimeToString(currentTime), domain.MapTimeToString(req.StorageUntil))))
+				cli.MapTimeToString(currentTime), cli.MapTimeToString(req.StorageUntil))))
 	}
 	if req.Weight <= 0 {
 		return 0, fmt.Errorf("validation: %w", domain.ValidationFailedError("weight must be greater than 0"))

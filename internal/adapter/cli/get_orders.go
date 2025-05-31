@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
 )
 
 func (a *CLIAdapter) GetReturnedOrders(cmd *cobra.Command, args []string) error {
@@ -56,7 +55,7 @@ func (a *CLIAdapter) GetOrdersSortedByTime(cmd *cobra.Command, args []string) er
 		fmt.Printf("HISTORY: %d %s %s\n",
 			order.OrderID,
 			order.GetStatusString(),
-			domain.MapTimeToString(order.LastUpdateTime),
+			MapTimeToString(order.LastUpdateTime),
 		)
 	}
 	return nil

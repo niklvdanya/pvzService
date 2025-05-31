@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
 )
 
 func (a *CLIAdapter) ListOrdersComm(cmd *cobra.Command, args []string) error {
@@ -53,8 +52,8 @@ func (a *CLIAdapter) ListOrdersComm(cmd *cobra.Command, args []string) error {
 				order.OrderID,
 				order.ReceiverID,
 				order.GetStatusString(),
-				domain.MapTimeToString(order.StorageUntil),
-				domain.MapPackageType(order.PackageType),
+				MapTimeToString(order.StorageUntil),
+				MapPackageType(order.PackageType),
 				order.Weight,
 				order.Price,
 			)

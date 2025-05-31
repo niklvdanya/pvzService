@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 
+	"gitlab.ozon.dev/safariproxd/homework/internal/adapter/cli"
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
 	"go.uber.org/multierr"
 )
@@ -11,7 +12,7 @@ func (s *PVZService) ImportOrders(orders []domain.OrderToImport) (uint64, error)
 	var combinedErr error
 	importedCount := uint64(0)
 	for _, rawOrder := range orders {
-		storageUntil, err := domain.MapStringToTime(rawOrder.StorageUntil)
+		storageUntil, err := cli.MapStringToTime(rawOrder.StorageUntil)
 		if err != nil {
 			combinedErr = multierr.Append(combinedErr, fmt.Errorf("time.Parse: %w", err))
 			continue

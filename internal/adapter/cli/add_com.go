@@ -33,7 +33,7 @@ func (a *CLIAdapter) AddComm(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("flag.GetString: %w", err)
 	}
 
-	storageUntil, err := domain.MapStringToTime(storageUntilStr)
+	storageUntil, err := MapStringToTime(storageUntilStr)
 	if err != nil {
 		return fmt.Errorf("time.Parse: %w", err)
 	}
