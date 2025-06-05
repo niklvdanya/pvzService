@@ -1,0 +1,256 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "orders/contract.proto",
+    "version": "version not set"
+  },
+  "tags": [
+    {
+      "name": "OrdersService"
+    }
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {},
+  "definitions": {
+    "ordersAcceptOrderRequest": {
+      "type": "object",
+      "properties": {
+        "orderId": {
+          "type": "string",
+          "format": "uint64"
+        },
+        "userId": {
+          "type": "string",
+          "format": "uint64"
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "package": {
+          "$ref": "#/definitions/ordersPackageType"
+        },
+        "weight": {
+          "type": "number",
+          "format": "float"
+        },
+        "price": {
+          "type": "number",
+          "format": "float"
+        }
+      }
+    },
+    "ordersActionType": {
+      "type": "string",
+      "enum": [
+        "ACTION_TYPE_UNSPECIFIED",
+        "ACTION_TYPE_ISSUE",
+        "ACTION_TYPE_RETURN"
+      ],
+      "default": "ACTION_TYPE_UNSPECIFIED"
+    },
+    "ordersImportResult": {
+      "type": "object",
+      "properties": {
+        "imported": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uint64"
+          }
+        }
+      }
+    },
+    "ordersOrder": {
+      "type": "object",
+      "properties": {
+        "orderId": {
+          "type": "string",
+          "format": "uint64"
+        },
+        "userId": {
+          "type": "string",
+          "format": "uint64"
+        },
+        "status": {
+          "$ref": "#/definitions/ordersOrderStatus"
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "weight": {
+          "type": "number",
+          "format": "float"
+        },
+        "totalPrice": {
+          "type": "number",
+          "format": "float"
+        },
+        "package": {
+          "$ref": "#/definitions/ordersPackageType"
+        }
+      }
+    },
+    "ordersOrderHistory": {
+      "type": "object",
+      "properties": {
+        "orderId": {
+          "type": "string",
+          "format": "uint64"
+        },
+        "status": {
+          "$ref": "#/definitions/ordersOrderStatus"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "ordersOrderHistoryList": {
+      "type": "object",
+      "properties": {
+        "history": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/ordersOrderHistory"
+          }
+        }
+      }
+    },
+    "ordersOrderResponse": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "$ref": "#/definitions/ordersOrderStatus"
+        },
+        "orderId": {
+          "type": "string",
+          "format": "uint64"
+        }
+      }
+    },
+    "ordersOrderStatus": {
+      "type": "string",
+      "enum": [
+        "ORDER_STATUS_UNSPECIFIED",
+        "ORDER_STATUS_EXPECTS",
+        "ORDER_STATUS_ACCEPTED",
+        "ORDER_STATUS_RETURNED",
+        "ORDER_STATUS_DELETED"
+      ],
+      "default": "ORDER_STATUS_UNSPECIFIED"
+    },
+    "ordersOrdersList": {
+      "type": "object",
+      "properties": {
+        "orders": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/ordersOrder"
+          }
+        },
+        "total": {
+          "type": "integer",
+          "format": "int32"
+        }
+      }
+    },
+    "ordersPackageType": {
+      "type": "string",
+      "enum": [
+        "PACKAGE_TYPE_UNSPECIFIED",
+        "PACKAGE_TYPE_BAG",
+        "PACKAGE_TYPE_BOX",
+        "PACKAGE_TYPE_TAPE",
+        "PACKAGE_TYPE_BAG_TAPE",
+        "PACKAGE_TYPE_BOX_TAPE"
+      ],
+      "default": "PACKAGE_TYPE_UNSPECIFIED"
+    },
+    "ordersPagination": {
+      "type": "object",
+      "properties": {
+        "page": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "countOnPage": {
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    },
+    "ordersProcessResult": {
+      "type": "object",
+      "properties": {
+        "processed": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uint64"
+          }
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uint64"
+          }
+        }
+      }
+    },
+    "ordersReturnsList": {
+      "type": "object",
+      "properties": {
+        "returns": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/ordersOrder"
+          }
+        }
+      }
+    },
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "@type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": {}
+    },
+    "rpcStatus": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    }
+  }
+}

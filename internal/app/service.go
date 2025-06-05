@@ -32,7 +32,7 @@ func NewPVZService(orderRepo OrderRepository, configPath string) (*PVZService, e
 	}, nil
 }
 
-func paginate[T any](items []T, currentPage, itemsPerPage uint64) []T {
+func Paginate[T any](items []T, currentPage, itemsPerPage uint64) []T {
 	totalItems := uint64(len(items))
 
 	if itemsPerPage == 0 {

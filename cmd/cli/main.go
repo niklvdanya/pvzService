@@ -2,29 +2,15 @@ package main
 
 import (
 	"log"
+	"net"
 	"os"
 
-	"gitlab.ozon.dev/safariproxd/homework/internal/adapter/cli"
+	server "gitlab.ozon.dev/safariproxd/homework/internal/adapter/grpc"
 	"gitlab.ozon.dev/safariproxd/homework/internal/app"
 	"gitlab.ozon.dev/safariproxd/homework/internal/config"
 	"gitlab.ozon.dev/safariproxd/homework/internal/repository/file"
-
-	"github.com/spf13/cobra"
-)
-
-var (
-	debug   bool
-	rootCmd = &cobra.Command{
-		Short: "PVZ (Pickup Point) command-line interface",
-		Long:  `A simple command-line interface for managing orders in a pickup point.`,
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := cmd.Help(); err != nil {
-				log.Printf("Failed to show help: %v", err)
-			}
-		},
-		SilenceUsage:  true,
-		SilenceErrors: true,
-	}
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 )
 
 func initLogging(path string) {
@@ -38,7 +24,6 @@ func initLogging(path string) {
 func main() {
 	cfg := config.Default()
 	initLogging(cfg.LogFile)
-	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "Enable debug mode")
 
 	orderRepo, err := file.NewFileOrderRepository(cfg.OrderDataFile)
 	if err != nil {
@@ -48,9 +33,19 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to init PVZ service: %v", err)
 	}
-	cliAdapter := cli.NewCLIAdapter(pvzService, rootCmd, debug)
 
-	if err := cliAdapter.Run(rootCmd); err != nil {
-		log.Fatalf("CLI exited with error: %v", err)
+	lis, err := net.Listen("tcp", ":50051")
+	if err != nil {
+		log.Fatalf("Failed to listen: %v", err)
+	}
+
+	grpcServer := grpc.NewServer()
+	reflection.Register(grpcServer)
+	ordersServer := server.NewOrdersServer(pvzService)
+	ordersServer.Register(grpcServer)
+
+	log.Println("gRPC server listening on :50051")
+	if err := grpcServer.Serve(lis); err != nil {
+		log.Fatalf("Failed to serve: %v", err)
 	}
 }

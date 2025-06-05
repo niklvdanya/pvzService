@@ -4,7 +4,6 @@ type Config struct {
 	OrderDataFile     string
 	OrdersOutputFile  string
 	LogFile           string
-	DefaultDataDir    string
 	PackageConfigFile string
 }
 

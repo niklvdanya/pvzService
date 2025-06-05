@@ -35,7 +35,7 @@ func (s *PVZService) GetReceiverOrders(receiverID uint64, inPVZ bool, lastN, pag
 			paginatedOrders = filteredOrders
 		}
 	} else {
-		paginatedOrders = paginate(filteredOrders, page, limit)
+		paginatedOrders = Paginate(filteredOrders, page, limit)
 	}
 
 	return paginatedOrders, totalItems, nil
@@ -47,7 +47,7 @@ func (s *PVZService) GetReturnedOrders(page, limit uint64) ([]*domain.Order, uin
 		return nil, 0, fmt.Errorf("repo.GetReturnedOrders: %w", err)
 	}
 
-	paginated := paginate(returnOrders, page, limit)
+	paginated := Paginate(returnOrders, page, limit)
 	return paginated, uint64(len(returnOrders)), nil
 }
 
