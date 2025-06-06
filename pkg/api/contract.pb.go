@@ -7,6 +7,7 @@
 package api
 
 import (
+	_ "github.com/envoyproxy/protoc-gen-validate/validate"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
@@ -1076,42 +1077,48 @@ var File_orders_contract_proto protoreflect.FileDescriptor
 
 const file_orders_contract_proto_rawDesc = "" +
 	"\n" +
-	"\x15orders/contract.proto\x12\x06orders\x1a\x1fgoogle/protobuf/timestamp.proto\"\xf1\x01\n" +
-	"\x12AcceptOrderRequest\x12\x19\n" +
-	"\border_id\x18\x01 \x01(\x04R\aorderId\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\x04R\x06userId\x129\n" +
+	"\x15orders/contract.proto\x12\x06orders\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x17validate/validate.proto\"\xa7\x02\n" +
+	"\x12AcceptOrderRequest\x12\"\n" +
+	"\border_id\x18\x01 \x01(\x04B\a\xfaB\x042\x02 \x00R\aorderId\x12 \n" +
+	"\auser_id\x18\x02 \x01(\x04B\a\xfaB\x042\x02 \x00R\x06userId\x12E\n" +
 	"\n" +
-	"expires_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\x122\n" +
-	"\apackage\x18\x04 \x01(\x0e2\x13.orders.PackageTypeH\x00R\apackage\x88\x01\x01\x12\x16\n" +
-	"\x06weight\x18\x05 \x01(\x02R\x06weight\x12\x14\n" +
-	"\x05price\x18\x06 \x01(\x02R\x05priceB\n" +
+	"expires_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampB\n" +
+	"\xfaB\a\xb2\x01\x04\b\x01@\x01R\texpiresAt\x122\n" +
+	"\apackage\x18\x04 \x01(\x0e2\x13.orders.PackageTypeH\x00R\apackage\x88\x01\x01\x12\"\n" +
+	"\x06weight\x18\x05 \x01(\x02B\n" +
+	"\xfaB\a\n" +
+	"\x05%\x00\x00\x00\x00R\x06weight\x12 \n" +
+	"\x05price\x18\x06 \x01(\x02B\n" +
+	"\xfaB\a\n" +
+	"\x05%\x00\x00\x00\x00R\x05priceB\n" +
 	"\n" +
-	"\b_package\"+\n" +
-	"\x0eOrderIdRequest\x12\x19\n" +
-	"\border_id\x18\x01 \x01(\x04R\aorderId\"x\n" +
-	"\x14ProcessOrdersRequest\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x04R\x06userId\x12*\n" +
-	"\x06action\x18\x02 \x01(\x0e2\x12.orders.ActionTypeR\x06action\x12\x1b\n" +
-	"\torder_ids\x18\x03 \x03(\x04R\borderIds\"\xb2\x01\n" +
-	"\x11ListOrdersRequest\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x04R\x06userId\x12\x15\n" +
-	"\x06in_pvz\x18\x02 \x01(\bR\x05inPvz\x12\x1a\n" +
-	"\x06last_n\x18\x03 \x01(\rH\x00R\x05lastN\x88\x01\x01\x127\n" +
+	"\b_package\"4\n" +
+	"\x0eOrderIdRequest\x12\"\n" +
+	"\border_id\x18\x01 \x01(\x04B\a\xfaB\x042\x02 \x00R\aorderId\"\x9d\x01\n" +
+	"\x14ProcessOrdersRequest\x12 \n" +
+	"\auser_id\x18\x01 \x01(\x04B\a\xfaB\x042\x02 \x00R\x06userId\x126\n" +
+	"\x06action\x18\x02 \x01(\x0e2\x12.orders.ActionTypeB\n" +
+	"\xfaB\a\x82\x01\x04\x10\x01 \x00R\x06action\x12+\n" +
+	"\torder_ids\x18\x03 \x03(\x04B\x0e\xfaB\v\x92\x01\b\b\x01\"\x042\x02 \x00R\borderIds\"\xc4\x01\n" +
+	"\x11ListOrdersRequest\x12 \n" +
+	"\auser_id\x18\x01 \x01(\x04B\a\xfaB\x042\x02 \x00R\x06userId\x12\x15\n" +
+	"\x06in_pvz\x18\x02 \x01(\bR\x05inPvz\x12#\n" +
+	"\x06last_n\x18\x03 \x01(\rB\a\xfaB\x04*\x02 \x00H\x00R\x05lastN\x88\x01\x01\x127\n" +
 	"\n" +
 	"pagination\x18\x04 \x01(\v2\x12.orders.PaginationH\x01R\n" +
 	"pagination\x88\x01\x01B\t\n" +
 	"\a_last_nB\r\n" +
-	"\v_pagination\"D\n" +
+	"\v_pagination\"V\n" +
 	"\n" +
-	"Pagination\x12\x12\n" +
-	"\x04page\x18\x01 \x01(\rR\x04page\x12\"\n" +
-	"\rcount_on_page\x18\x02 \x01(\rR\vcountOnPage\"H\n" +
+	"Pagination\x12\x1b\n" +
+	"\x04page\x18\x01 \x01(\rB\a\xfaB\x04*\x02(\x00R\x04page\x12+\n" +
+	"\rcount_on_page\x18\x02 \x01(\rB\a\xfaB\x04*\x02 \x00R\vcountOnPage\"H\n" +
 	"\x12ListReturnsRequest\x122\n" +
 	"\n" +
 	"pagination\x18\x01 \x01(\v2\x12.orders.PaginationR\n" +
-	"pagination\"I\n" +
-	"\x13ImportOrdersRequest\x122\n" +
-	"\x06orders\x18\x01 \x03(\v2\x1a.orders.AcceptOrderRequestR\x06orders\"G\n" +
+	"pagination\"S\n" +
+	"\x13ImportOrdersRequest\x12<\n" +
+	"\x06orders\x18\x01 \x03(\v2\x1a.orders.AcceptOrderRequestB\b\xfaB\x05\x92\x01\x02\b\x01R\x06orders\"G\n" +
 	"\x11GetHistoryRequest\x122\n" +
 	"\n" +
 	"pagination\x18\x01 \x01(\v2\x12.orders.PaginationR\n" +
@@ -1177,7 +1184,7 @@ const file_orders_contract_proto_rawDesc = "" +
 	"\vListReturns\x12\x1a.orders.ListReturnsRequest\x1a\x13.orders.ReturnsList\x12A\n" +
 	"\n" +
 	"GetHistory\x12\x19.orders.GetHistoryRequest\x1a\x18.orders.OrderHistoryList\x12A\n" +
-	"\fImportOrders\x12\x1b.orders.ImportOrdersRequest\x1a\x14.orders.ImportResultB1Z/gitlab.ozon.dev/safariproxd/homework/api/ordersb\x06proto3"
+	"\fImportOrders\x12\x1b.orders.ImportOrdersRequest\x1a\x14.orders.ImportResultB.Z,gitlab.ozon.dev/safariproxd/homework/pkg/apib\x06proto3"
 
 var (
 	file_orders_contract_proto_rawDescOnce sync.Once

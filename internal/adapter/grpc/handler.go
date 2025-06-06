@@ -7,15 +7,10 @@ import (
 	"gitlab.ozon.dev/safariproxd/homework/internal/app"
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
 	"gitlab.ozon.dev/safariproxd/homework/pkg/api"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func (s *OrdersServer) AcceptOrder(ctx context.Context, req *api.AcceptOrderRequest) (*api.OrderResponse, error) {
-	if req.OrderId == 0 || req.UserId == 0 || req.ExpiresAt == nil {
-		return nil, status.Error(codes.InvalidArgument, "order_id, user_id, and expires_at are required")
-	}
 	var packageType string
 	if req.Package != nil {
 		packageType = mapPackageTypeToString(*req.Package)
@@ -30,7 +25,7 @@ func (s *OrdersServer) AcceptOrder(ctx context.Context, req *api.AcceptOrderRequ
 	}
 	_, err := s.service.AcceptOrder(acceptReq)
 	if err != nil {
-		return nil, mapErrorToGRPCStatus(err)
+		return nil, err
 	}
 	return &api.OrderResponse{
 		Status:  api.OrderStatus_ORDER_STATUS_EXPECTS,
@@ -39,12 +34,9 @@ func (s *OrdersServer) AcceptOrder(ctx context.Context, req *api.AcceptOrderRequ
 }
 
 func (s *OrdersServer) ReturnOrder(ctx context.Context, req *api.OrderIdRequest) (*api.OrderResponse, error) {
-	if req.OrderId == 0 {
-		return nil, status.Error(codes.InvalidArgument, "order_id is required")
-	}
 	err := s.service.ReturnOrderToDelivery(req.OrderId)
 	if err != nil {
-		return nil, mapErrorToGRPCStatus(err)
+		return nil, err
 	}
 	return &api.OrderResponse{
 		Status:  api.OrderStatus_ORDER_STATUS_DELETED,
@@ -53,9 +45,6 @@ func (s *OrdersServer) ReturnOrder(ctx context.Context, req *api.OrderIdRequest)
 }
 
 func (s *OrdersServer) ProcessOrders(ctx context.Context, req *api.ProcessOrdersRequest) (*api.ProcessResult, error) {
-	if req.UserId == 0 || len(req.OrderIds) == 0 || req.Action == api.ActionType_ACTION_TYPE_UNSPECIFIED {
-		return nil, status.Error(codes.InvalidArgument, "user_id, order_ids, and action are required")
-	}
 	var err error
 	if req.Action == api.ActionType_ACTION_TYPE_ISSUE {
 		err = s.service.IssueOrdersToClient(req.UserId, req.OrderIds)
@@ -69,9 +58,6 @@ func (s *OrdersServer) ProcessOrders(ctx context.Context, req *api.ProcessOrders
 }
 
 func (s *OrdersServer) ListOrders(ctx context.Context, req *api.ListOrdersRequest) (*api.OrdersList, error) {
-	if req.UserId == 0 {
-		return nil, status.Error(codes.InvalidArgument, "user_id is required")
-	}
 	var page, limit, lastN uint64
 	if req.Pagination != nil {
 		page = uint64(req.Pagination.Page)
@@ -82,7 +68,7 @@ func (s *OrdersServer) ListOrders(ctx context.Context, req *api.ListOrdersReques
 	}
 	orders, total, err := s.service.GetReceiverOrders(req.UserId, req.InPvz, lastN, page, limit)
 	if err != nil {
-		return nil, mapErrorToGRPCStatus(err)
+		return nil, err
 	}
 	protoOrders := make([]*api.Order, len(orders))
 	for i, order := range orders {
@@ -102,7 +88,7 @@ func (s *OrdersServer) ListReturns(ctx context.Context, req *api.ListReturnsRequ
 	}
 	orders, _, err := s.service.GetReturnedOrders(page, limit)
 	if err != nil {
-		return nil, mapErrorToGRPCStatus(err)
+		return nil, err
 	}
 	protoOrders := make([]*api.Order, len(orders))
 	for i, order := range orders {
@@ -119,7 +105,7 @@ func (s *OrdersServer) GetHistory(ctx context.Context, req *api.GetHistoryReques
 	}
 	orders, err := s.service.GetOrderHistory()
 	if err != nil {
-		return nil, mapErrorToGRPCStatus(err)
+		return nil, err
 	}
 	paginated := app.Paginate(orders, page, limit)
 	history := make([]*api.OrderHistory, len(paginated))
@@ -136,11 +122,15 @@ func (s *OrdersServer) GetHistory(ctx context.Context, req *api.GetHistoryReques
 func (s *OrdersServer) ImportOrders(ctx context.Context, req *api.ImportOrdersRequest) (*api.ImportResult, error) {
 	orders := make([]domain.OrderToImport, len(req.Orders))
 	for i, order := range req.Orders {
+		var packageType string
+		if order.Package != nil {
+			packageType = mapPackageTypeToString(*order.Package)
+		}
 		orders[i] = domain.OrderToImport{
 			OrderID:      order.OrderId,
 			ReceiverID:   order.UserId,
 			StorageUntil: order.ExpiresAt.AsTime().Format(cli.TimeFormat),
-			PackageType:  mapPackageTypeToString(*order.Package),
+			PackageType:  packageType,
 			Weight:       float64(order.Weight),
 			Price:        float64(order.Price),
 		}

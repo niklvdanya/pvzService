@@ -2,9 +2,10 @@ syntax = "proto3";
 
 package orders;
 
-option go_package = "gitlab.ozon.dev/safariproxd/homework/api/orders";
+option go_package = "gitlab.ozon.dev/safariproxd/homework/pkg/api";
 
 import "google/protobuf/timestamp.proto";
+import "validate/validate.proto";
 
 service OrdersService {
     rpc AcceptOrder (AcceptOrderRequest) returns (OrderResponse);
@@ -17,22 +18,22 @@ service OrdersService {
 }
 
 message AcceptOrderRequest {
-    uint64 order_id = 1;
-    uint64 user_id = 2;
-    google.protobuf.Timestamp expires_at = 3;
+    uint64 order_id = 1 [(validate.rules).uint64.gt = 0];
+    uint64 user_id = 2 [(validate.rules).uint64.gt = 0];
+    google.protobuf.Timestamp expires_at = 3 [(validate.rules).timestamp.required = true, (validate.rules).timestamp.gt_now = true];
     optional PackageType package = 4;
-    float weight = 5;
-    float price = 6;
+    float weight = 5 [(validate.rules).float.gt = 0];
+    float price = 6 [(validate.rules).float.gt = 0];
 }
 
 message OrderIdRequest {
-    uint64 order_id = 1;
+    uint64 order_id = 1 [(validate.rules).uint64.gt = 0];
 }
 
 message ProcessOrdersRequest {
-    uint64 user_id = 1;
-    ActionType action = 2;
-    repeated uint64 order_ids = 3;
+    uint64 user_id = 1 [(validate.rules).uint64.gt = 0];
+    ActionType action = 2 [(validate.rules).enum = { defined_only: true, not_in: [0] }];
+    repeated uint64 order_ids = 3 [(validate.rules).repeated.min_items = 1, (validate.rules).repeated.items.uint64.gt = 0];
 }
 
 enum ActionType {
@@ -42,15 +43,15 @@ enum ActionType {
 }
 
 message ListOrdersRequest {
-    uint64 user_id = 1;
+    uint64 user_id = 1 [(validate.rules).uint64.gt = 0];
     bool in_pvz = 2;
-    optional uint32 last_n = 3;
+    optional uint32 last_n = 3 [(validate.rules).uint32.gt = 0];
     optional Pagination pagination = 4;
 }
 
 message Pagination {
-    uint32 page = 1;
-    uint32 count_on_page = 2;
+    uint32 page = 1 [(validate.rules).uint32.gte = 0];
+    uint32 count_on_page = 2 [(validate.rules).uint32.gt = 0];
 }
 
 message ListReturnsRequest {
@@ -58,7 +59,7 @@ message ListReturnsRequest {
 }
 
 message ImportOrdersRequest {
-    repeated AcceptOrderRequest orders = 1;
+    repeated AcceptOrderRequest orders = 1 [(validate.rules).repeated.min_items = 1];
 }
 
 message GetHistoryRequest {

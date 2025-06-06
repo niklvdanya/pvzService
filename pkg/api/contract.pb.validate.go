@@ -57,42 +57,90 @@ func (m *AcceptOrderRequest) validate(all bool) error {
 
 	var errors []error
 
-	// no validation rules for OrderId
-
-	// no validation rules for UserId
-
-	if all {
-		switch v := interface{}(m.GetExpiresAt()).(type) {
-		case interface{ ValidateAll() error }:
-			if err := v.ValidateAll(); err != nil {
-				errors = append(errors, AcceptOrderRequestValidationError{
-					field:  "ExpiresAt",
-					reason: "embedded message failed validation",
-					cause:  err,
-				})
-			}
-		case interface{ Validate() error }:
-			if err := v.Validate(); err != nil {
-				errors = append(errors, AcceptOrderRequestValidationError{
-					field:  "ExpiresAt",
-					reason: "embedded message failed validation",
-					cause:  err,
-				})
-			}
+	if m.GetOrderId() <= 0 {
+		err := AcceptOrderRequestValidationError{
+			field:  "OrderId",
+			reason: "value must be greater than 0",
 		}
-	} else if v, ok := interface{}(m.GetExpiresAt()).(interface{ Validate() error }); ok {
-		if err := v.Validate(); err != nil {
-			return AcceptOrderRequestValidationError{
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if m.GetUserId() <= 0 {
+		err := AcceptOrderRequestValidationError{
+			field:  "UserId",
+			reason: "value must be greater than 0",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if m.GetExpiresAt() == nil {
+		err := AcceptOrderRequestValidationError{
+			field:  "ExpiresAt",
+			reason: "value is required",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if t := m.GetExpiresAt(); t != nil {
+		ts, err := t.AsTime(), t.CheckValid()
+		if err != nil {
+			err = AcceptOrderRequestValidationError{
 				field:  "ExpiresAt",
-				reason: "embedded message failed validation",
+				reason: "value is not a valid timestamp",
 				cause:  err,
 			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		} else {
+
+			now := time.Now()
+
+			if ts.Sub(now) <= 0 {
+				err := AcceptOrderRequestValidationError{
+					field:  "ExpiresAt",
+					reason: "value must be greater than now",
+				}
+				if !all {
+					return err
+				}
+				errors = append(errors, err)
+			}
+
 		}
 	}
 
-	// no validation rules for Weight
+	if m.GetWeight() <= 0 {
+		err := AcceptOrderRequestValidationError{
+			field:  "Weight",
+			reason: "value must be greater than 0",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
 
-	// no validation rules for Price
+	if m.GetPrice() <= 0 {
+		err := AcceptOrderRequestValidationError{
+			field:  "Price",
+			reason: "value must be greater than 0",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
 
 	if m.Package != nil {
 		// no validation rules for Package
@@ -200,7 +248,16 @@ func (m *OrderIdRequest) validate(all bool) error {
 
 	var errors []error
 
-	// no validation rules for OrderId
+	if m.GetOrderId() <= 0 {
+		err := OrderIdRequestValidationError{
+			field:  "OrderId",
+			reason: "value must be greater than 0",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
 
 	if len(errors) > 0 {
 		return OrderIdRequestMultiError(errors)
@@ -302,9 +359,65 @@ func (m *ProcessOrdersRequest) validate(all bool) error {
 
 	var errors []error
 
-	// no validation rules for UserId
+	if m.GetUserId() <= 0 {
+		err := ProcessOrdersRequestValidationError{
+			field:  "UserId",
+			reason: "value must be greater than 0",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
 
-	// no validation rules for Action
+	if _, ok := _ProcessOrdersRequest_Action_NotInLookup[m.GetAction()]; ok {
+		err := ProcessOrdersRequestValidationError{
+			field:  "Action",
+			reason: "value must not be in list [ACTION_TYPE_UNSPECIFIED]",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if _, ok := ActionType_name[int32(m.GetAction())]; !ok {
+		err := ProcessOrdersRequestValidationError{
+			field:  "Action",
+			reason: "value must be one of the defined enum values",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if len(m.GetOrderIds()) < 1 {
+		err := ProcessOrdersRequestValidationError{
+			field:  "OrderIds",
+			reason: "value must contain at least 1 item(s)",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	for idx, item := range m.GetOrderIds() {
+		_, _ = idx, item
+
+		if item <= 0 {
+			err := ProcessOrdersRequestValidationError{
+				field:  fmt.Sprintf("OrderIds[%v]", idx),
+				reason: "value must be greater than 0",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+
+	}
 
 	if len(errors) > 0 {
 		return ProcessOrdersRequestMultiError(errors)
@@ -386,6 +499,10 @@ var _ interface {
 	ErrorName() string
 } = ProcessOrdersRequestValidationError{}
 
+var _ProcessOrdersRequest_Action_NotInLookup = map[ActionType]struct{}{
+	0: {},
+}
+
 // Validate checks the field values on ListOrdersRequest with the rules defined
 // in the proto definition for this message. If any rules are violated, the
 // first error encountered is returned, or nil if there are no violations.
@@ -408,12 +525,32 @@ func (m *ListOrdersRequest) validate(all bool) error {
 
 	var errors []error
 
-	// no validation rules for UserId
+	if m.GetUserId() <= 0 {
+		err := ListOrdersRequestValidationError{
+			field:  "UserId",
+			reason: "value must be greater than 0",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
 
 	// no validation rules for InPvz
 
 	if m.LastN != nil {
-		// no validation rules for LastN
+
+		if m.GetLastN() <= 0 {
+			err := ListOrdersRequestValidationError{
+				field:  "LastN",
+				reason: "value must be greater than 0",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+
 	}
 
 	if m.Pagination != nil {
@@ -551,9 +688,27 @@ func (m *Pagination) validate(all bool) error {
 
 	var errors []error
 
-	// no validation rules for Page
+	if m.GetPage() < 0 {
+		err := PaginationValidationError{
+			field:  "Page",
+			reason: "value must be greater than or equal to 0",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
 
-	// no validation rules for CountOnPage
+	if m.GetCountOnPage() <= 0 {
+		err := PaginationValidationError{
+			field:  "CountOnPage",
+			reason: "value must be greater than 0",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
 
 	if len(errors) > 0 {
 		return PaginationMultiError(errors)
@@ -784,6 +939,17 @@ func (m *ImportOrdersRequest) validate(all bool) error {
 	}
 
 	var errors []error
+
+	if len(m.GetOrders()) < 1 {
+		err := ImportOrdersRequestValidationError{
+			field:  "Orders",
+			reason: "value must contain at least 1 item(s)",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
 
 	for idx, item := range m.GetOrders() {
 		_, _ = idx, item

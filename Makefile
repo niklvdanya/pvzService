@@ -6,7 +6,7 @@ endif
 
 APP_NAME := pvz
 BUILD_DIR := bin
-MAIN_PATH := cmd/cli/main.go
+MAIN_PATH := cmd/pvz/main.go
 
 .PHONY: update linter build start run clean
 
@@ -63,3 +63,33 @@ generate:
 		--openapiv2_out=$(OUT_PATH) --plugin=protoc-gen-openapiv2=$(LOCAL_BIN)/protoc-gen-openapiv2 \
 		api/orders/contract.proto 
 	go mod tidy
+
+.vendor-proto/validate:
+	git clone -b main --single-branch --depth=2 --filter=tree:0 \
+	https://github.com/bufbuild/protoc-gen-validate vendor.protogen/tmp && \
+	cd vendor.protogen/tmp && \
+	git sparse-checkout set --no-cone validate && \
+	git checkout
+	mkdir -p vendor.protogen/validate
+	mv vendor.protogen/tmp/validate vendor.protogen/
+	rm -rf vendor.protogen/tmp
+
+.vendor-proto/google/api:
+	git clone -b master --single-branch -n --depth=1 --filter=tree:0 \
+ 		https://github.com/googleapis/googleapis vendor.protogen/googleapis && \
+ 		cd vendor.protogen/googleapis && \
+		git sparse-checkout set --no-cone google/api && \
+		git checkout
+		mkdir -p vendor.protogen/google
+		mv vendor.protogen/googleapis/google/api vendor.protogen/google
+		rm -rf vendor.protogen/googleapis
+
+.vendor-proto/protoc-gen-openapiv2/options:
+	git clone -b main --single-branch -n --depth=1 --filter=tree:0 \
+ 		https://github.com/grpc-ecosystem/grpc-gateway vendor.protogen/grpc-ecosystem && \
+ 		cd vendor.protogen/grpc-ecosystem && \
+		git sparse-checkout set --no-cone protoc-gen-openapiv2/options && \
+		git checkout
+		mkdir -p vendor.protogen/protoc-gen-openapiv2
+		mv vendor.protogen/grpc-ecosystem/protoc-gen-openapiv2/options vendor.protogen/protoc-gen-openapiv2
+		rm -rf vendor.protogen/grpc-ecosystem
