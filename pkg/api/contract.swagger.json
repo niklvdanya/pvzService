@@ -1,13 +1,18 @@
 {
   "swagger": "2.0",
   "info": {
-    "title": "orders/contract.proto",
-    "version": "version not set"
+    "title": "PVZ Orders Service",
+    "description": "API для управления заказами в системе пункта выдачи заказов.",
+    "version": "1.0.0"
   },
   "tags": [
     {
       "name": "OrdersService"
     }
+  ],
+  "host": "localhost:8081",
+  "schemes": [
+    "http"
   ],
   "consumes": [
     "application/json"
@@ -15,7 +20,284 @@
   "produces": [
     "application/json"
   ],
-  "paths": {},
+  "paths": {
+    "/v1/orders/accept": {
+      "post": {
+        "summary": "Принять заказ от курьера",
+        "description": "Принимает заказ с указанным ID, ID получателя и сроком хранения. Заказ нельзя принять дважды. Если срок хранения в прошлом, выдается ошибка.",
+        "operationId": "OrdersService_AcceptOrder",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/ordersOrderResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/ordersAcceptOrderRequest"
+            }
+          }
+        ],
+        "tags": [
+          "OrdersService"
+        ]
+      }
+    },
+    "/v1/orders/history": {
+      "get": {
+        "summary": "Получить историю заказов",
+        "description": "Возвращает историю изменений статуса всех заказов, отсортированную по времени последнего обновления.",
+        "operationId": "OrdersService_GetHistory",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/ordersOrderHistoryList"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "pagination.page",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int64"
+          },
+          {
+            "name": "pagination.countOnPage",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int64"
+          }
+        ],
+        "tags": [
+          "OrdersService"
+        ]
+      }
+    },
+    "/v1/orders/import": {
+      "post": {
+        "summary": "Импортировать заказы",
+        "description": "Импортирует несколько заказов из предоставленного списка, валидируя каждый заказ.",
+        "operationId": "OrdersService_ImportOrders",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/ordersImportResult"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/ordersImportOrdersRequest"
+            }
+          }
+        ],
+        "tags": [
+          "OrdersService"
+        ]
+      }
+    },
+    "/v1/orders/list/{userId}": {
+      "get": {
+        "summary": "Получить список заказов",
+        "description": "Возвращает список заказов для указанного пользователя. Поддерживает получение последних N заказов или заказов, находящихся в ПВЗ, с опциональной пагинацией.",
+        "operationId": "OrdersService_ListOrders",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/ordersOrdersList"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "uint64"
+          },
+          {
+            "name": "inPvz",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "lastN",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int64"
+          },
+          {
+            "name": "pagination.page",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int64"
+          },
+          {
+            "name": "pagination.countOnPage",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int64"
+          }
+        ],
+        "tags": [
+          "OrdersService"
+        ]
+      }
+    },
+    "/v1/orders/process": {
+      "post": {
+        "summary": "Выдать заказы или принять возвраты клиента",
+        "description": "Обрабатывает выдачу заказов или прием возвратов для указанного пользователя и списка заказов. Выдача возможна только для принятых заказов с неистекшим сроком хранения. Возврат возможен в течение двух суток с момента выдачи. Все заказы должны принадлежать одному клиенту.",
+        "operationId": "OrdersService_ProcessOrders",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/ordersProcessResult"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/ordersProcessOrdersRequest"
+            }
+          }
+        ],
+        "tags": [
+          "OrdersService"
+        ]
+      }
+    },
+    "/v1/orders/return": {
+      "post": {
+        "summary": "Вернуть заказ курьеру",
+        "description": "Возвращает заказ курьеру по указанному ID. Можно вернуть только заказы, которые не находятся у клиентов или у которых истек срок хранения. Заказ помечается как удаленный.",
+        "operationId": "OrdersService_ReturnOrder",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/ordersOrderResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/ordersOrderIdRequest"
+            }
+          }
+        ],
+        "tags": [
+          "OrdersService"
+        ]
+      }
+    },
+    "/v1/orders/returns": {
+      "get": {
+        "summary": "Получить список возвратов клиентов",
+        "description": "Возвращает список возвращенных заказов с постраничной пагинацией, отсортированный от свежих возвратов к старым.",
+        "operationId": "OrdersService_ListReturns",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/ordersReturnsList"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "pagination.page",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int64"
+          },
+          {
+            "name": "pagination.countOnPage",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int64"
+          }
+        ],
+        "tags": [
+          "OrdersService"
+        ]
+      }
+    }
+  },
   "definitions": {
     "ordersAcceptOrderRequest": {
       "type": "object",
@@ -53,6 +335,18 @@
         "ACTION_TYPE_RETURN"
       ],
       "default": "ACTION_TYPE_UNSPECIFIED"
+    },
+    "ordersImportOrdersRequest": {
+      "type": "object",
+      "properties": {
+        "orders": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/ordersAcceptOrderRequest"
+          }
+        }
+      }
     },
     "ordersImportResult": {
       "type": "object",
@@ -129,6 +423,15 @@
         }
       }
     },
+    "ordersOrderIdRequest": {
+      "type": "object",
+      "properties": {
+        "orderId": {
+          "type": "string",
+          "format": "uint64"
+        }
+      }
+    },
     "ordersOrderResponse": {
       "type": "object",
       "properties": {
@@ -190,6 +493,25 @@
         "countOnPage": {
           "type": "integer",
           "format": "int64"
+        }
+      }
+    },
+    "ordersProcessOrdersRequest": {
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "format": "uint64"
+        },
+        "action": {
+          "$ref": "#/definitions/ordersActionType"
+        },
+        "orderIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uint64"
+          }
         }
       }
     },

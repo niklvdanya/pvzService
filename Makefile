@@ -8,8 +8,11 @@ APP_NAME := pvz
 BUILD_DIR := bin
 MAIN_PATH := cmd/pvz/main.go
 
-.PHONY: update linter build start run clean
-
+.PHONY: update linter build start run clean gateway swagger
+clean:
+	rm -rf $(BUILD_DIR)
+	rm -rf vendor.protogen
+	
 update:
 	go mod tidy
 	go mod download
@@ -93,3 +96,8 @@ generate:
 		mkdir -p vendor.protogen/protoc-gen-openapiv2
 		mv vendor.protogen/grpc-ecosystem/protoc-gen-openapiv2/options vendor.protogen/protoc-gen-openapiv2
 		rm -rf vendor.protogen/grpc-ecosystem
+
+gateway:
+	go run cmd/gateway/main.go
+swagger:
+	go run cmd/swagger/main.go

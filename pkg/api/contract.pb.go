@@ -8,6 +8,8 @@ package api
 
 import (
 	_ "github.com/envoyproxy/protoc-gen-validate/validate"
+	_ "github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/options"
+	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
@@ -1077,7 +1079,7 @@ var File_orders_contract_proto protoreflect.FileDescriptor
 
 const file_orders_contract_proto_rawDesc = "" +
 	"\n" +
-	"\x15orders/contract.proto\x12\x06orders\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x17validate/validate.proto\"\xa7\x02\n" +
+	"\x15orders/contract.proto\x12\x06orders\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x17validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a.protoc-gen-openapiv2/options/annotations.proto\"\xa7\x02\n" +
 	"\x12AcceptOrderRequest\x12\"\n" +
 	"\border_id\x18\x01 \x01(\x04B\a\xfaB\x042\x02 \x00R\aorderId\x12 \n" +
 	"\auser_id\x18\x02 \x01(\x04B\a\xfaB\x042\x02 \x00R\x06userId\x12E\n" +
@@ -1174,17 +1176,18 @@ const file_orders_contract_proto_rawDesc = "" +
 	"\x14ORDER_STATUS_EXPECTS\x10\x01\x12\x19\n" +
 	"\x15ORDER_STATUS_ACCEPTED\x10\x02\x12\x19\n" +
 	"\x15ORDER_STATUS_RETURNED\x10\x03\x12\x18\n" +
-	"\x14ORDER_STATUS_DELETED\x10\x042\xd8\x03\n" +
-	"\rOrdersService\x12@\n" +
-	"\vAcceptOrder\x12\x1a.orders.AcceptOrderRequest\x1a\x15.orders.OrderResponse\x12<\n" +
-	"\vReturnOrder\x12\x16.orders.OrderIdRequest\x1a\x15.orders.OrderResponse\x12D\n" +
-	"\rProcessOrders\x12\x1c.orders.ProcessOrdersRequest\x1a\x15.orders.ProcessResult\x12;\n" +
+	"\x14ORDER_STATUS_DELETED\x10\x042\xc9\x17\n" +
+	"\rOrdersService\x12\x90\x03\n" +
+	"\vAcceptOrder\x12\x1a.orders.AcceptOrderRequest\x1a\x15.orders.OrderResponse\"\xcd\x02\x92A\xad\x02\x12-Принять заказ от курьера\x1a\xfb\x01Принимает заказ с указанным ID, ID получателя и сроком хранения. Заказ нельзя принять дважды. Если срок хранения в прошлом, выдается ошибка.\x82\xd3\xe4\x93\x02\x16:\x01*\"\x11/v1/orders/accept\x12\xc2\x03\n" +
+	"\vReturnOrder\x12\x16.orders.OrderIdRequest\x1a\x15.orders.OrderResponse\"\x83\x03\x92A\xe3\x02\x12(Вернуть заказ курьеру\x1a\xb6\x02Возвращает заказ курьеру по указанному ID. Можно вернуть только заказы, которые не находятся у клиентов или у которых истек срок хранения. Заказ помечается как удаленный.\x82\xd3\xe4\x93\x02\x16:\x01*\"\x11/v1/orders/return\x12\xb0\x05\n" +
+	"\rProcessOrders\x12\x1c.orders.ProcessOrdersRequest\x1a\x15.orders.ProcessResult\"\xe9\x04\x92A\xc8\x04\x12OВыдать заказы или принять возвраты клиента\x1a\xf4\x03Обрабатывает выдачу заказов или прием возвратов для указанного пользователя и списка заказов. Выдача возможна только для принятых заказов с неистекшим сроком хранения. Возврат возможен в течение двух суток с момента выдачи. Все заказы должны принадлежать одному клиенту.\x82\xd3\xe4\x93\x02\x17:\x01*\"\x12/v1/orders/process\x12\xb5\x03\n" +
 	"\n" +
-	"ListOrders\x12\x19.orders.ListOrdersRequest\x1a\x12.orders.OrdersList\x12>\n" +
-	"\vListReturns\x12\x1a.orders.ListReturnsRequest\x1a\x13.orders.ReturnsList\x12A\n" +
+	"ListOrders\x12\x19.orders.ListOrdersRequest\x1a\x12.orders.OrdersList\"\xf7\x02\x92A\xd2\x02\x12,Получить список заказов\x1a\xa1\x02Возвращает список заказов для указанного пользователя. Поддерживает получение последних N заказов или заказов, находящихся в ПВЗ, с опциональной пагинацией.\x82\xd3\xe4\x93\x02\x1b\x12\x19/v1/orders/list/{user_id}\x12\xf5\x02\n" +
+	"\vListReturns\x12\x1a.orders.ListReturnsRequest\x1a\x13.orders.ReturnsList\"\xb4\x02\x92A\x96\x02\x12AПолучить список возвратов клиентов\x1a\xd0\x01Возвращает список возвращенных заказов с постраничной пагинацией, отсортированный от свежих возвратов к старым.\x82\xd3\xe4\x93\x02\x14\x12\x12/v1/orders/returns\x12\xd1\x02\n" +
 	"\n" +
-	"GetHistory\x12\x19.orders.GetHistoryRequest\x1a\x18.orders.OrderHistoryList\x12A\n" +
-	"\fImportOrders\x12\x1b.orders.ImportOrdersRequest\x1a\x14.orders.ImportResultB.Z,gitlab.ozon.dev/safariproxd/homework/pkg/apib\x06proto3"
+	"GetHistory\x12\x19.orders.GetHistoryRequest\x1a\x18.orders.OrderHistoryList\"\x8d\x02\x92A\xef\x01\x12.Получить историю заказов\x1a\xbc\x01Возвращает историю изменений статуса всех заказов, отсортированную по времени последнего обновления.\x82\xd3\xe4\x93\x02\x14\x12\x12/v1/orders/history\x12\xa8\x02\n" +
+	"\fImportOrders\x12\x1b.orders.ImportOrdersRequest\x1a\x14.orders.ImportResult\"\xe4\x01\x92A\xc4\x01\x12'Импортировать заказы\x1a\x98\x01Импортирует несколько заказов из предоставленного списка, валидируя каждый заказ.\x82\xd3\xe4\x93\x02\x16:\x01*\"\x11/v1/orders/importB\xf5\x01\x92A\xc3\x01\x12\x89\x01\n" +
+	"\x12PVZ Orders Service\x12lAPI для управления заказами в системе пункта выдачи заказов.2\x051.0.0\x1a\x0elocalhost:8081*\x01\x012\x10application/json:\x10application/jsonZ,gitlab.ozon.dev/safariproxd/homework/pkg/apib\x06proto3"
 
 var (
 	file_orders_contract_proto_rawDescOnce sync.Once

@@ -6,15 +6,89 @@ option go_package = "gitlab.ozon.dev/safariproxd/homework/pkg/api";
 
 import "google/protobuf/timestamp.proto";
 import "validate/validate.proto";
+import "google/api/annotations.proto";
+import "protoc-gen-openapiv2/options/annotations.proto";
+
+option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_swagger) = {
+  info: {
+    title: "PVZ Orders Service";
+    version: "1.0.0";
+    description: "API для управления заказами в системе пункта выдачи заказов.";
+  };
+  host: "localhost:8081";
+  schemes: HTTP;
+  consumes: "application/json";
+  produces: "application/json";
+};
 
 service OrdersService {
-    rpc AcceptOrder (AcceptOrderRequest) returns (OrderResponse);
-    rpc ReturnOrder (OrderIdRequest) returns (OrderResponse);
-    rpc ProcessOrders (ProcessOrdersRequest) returns (ProcessResult);
-    rpc ListOrders (ListOrdersRequest) returns (OrdersList);
-    rpc ListReturns (ListReturnsRequest) returns (ReturnsList);
-    rpc GetHistory (GetHistoryRequest) returns (OrderHistoryList);
-    rpc ImportOrders (ImportOrdersRequest) returns (ImportResult);
+    rpc AcceptOrder (AcceptOrderRequest) returns (OrderResponse) {
+        option (google.api.http) = {
+            post: "/v1/orders/accept",
+            body: "*"
+        };
+        option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+            summary: "Принять заказ от курьера";
+            description: "Принимает заказ с указанным ID, ID получателя и сроком хранения. Заказ нельзя принять дважды. Если срок хранения в прошлом, выдается ошибка.";
+        };
+    };
+    rpc ReturnOrder (OrderIdRequest) returns (OrderResponse) {
+        option (google.api.http) = {
+            post: "/v1/orders/return",
+            body: "*"
+        };
+        option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+            summary: "Вернуть заказ курьеру";
+            description: "Возвращает заказ курьеру по указанному ID. Можно вернуть только заказы, которые не находятся у клиентов или у которых истек срок хранения. Заказ помечается как удаленный.";
+        };
+    };
+    rpc ProcessOrders (ProcessOrdersRequest) returns (ProcessResult) {
+        option (google.api.http) = {
+            post: "/v1/orders/process",
+            body: "*"
+        };
+        option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+            summary: "Выдать заказы или принять возвраты клиента";
+            description: "Обрабатывает выдачу заказов или прием возвратов для указанного пользователя и списка заказов. Выдача возможна только для принятых заказов с неистекшим сроком хранения. Возврат возможен в течение двух суток с момента выдачи. Все заказы должны принадлежать одному клиенту.";
+        };
+    };
+    rpc ListOrders (ListOrdersRequest) returns (OrdersList) {
+        option (google.api.http) = {
+            get: "/v1/orders/list/{user_id}"
+        };
+        option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+            summary: "Получить список заказов";
+            description: "Возвращает список заказов для указанного пользователя. Поддерживает получение последних N заказов или заказов, находящихся в ПВЗ, с опциональной пагинацией.";
+        };
+    };
+    rpc ListReturns (ListReturnsRequest) returns (ReturnsList) {
+        option (google.api.http) = {
+            get: "/v1/orders/returns"
+        };
+        option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+            summary: "Получить список возвратов клиентов";
+            description: "Возвращает список возвращенных заказов с постраничной пагинацией, отсортированный от свежих возвратов к старым.";
+        };
+    };
+    rpc GetHistory (GetHistoryRequest) returns (OrderHistoryList) {
+        option (google.api.http) = {
+            get: "/v1/orders/history"
+        };
+        option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+            summary: "Получить историю заказов";
+            description: "Возвращает историю изменений статуса всех заказов, отсортированную по времени последнего обновления.";
+        };
+    };
+    rpc ImportOrders (ImportOrdersRequest) returns (ImportResult) {
+        option (google.api.http) = {
+            post: "/v1/orders/import",
+            body: "*"
+        };
+        option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+            summary: "Импортировать заказы";
+            description: "Импортирует несколько заказов из предоставленного списка, валидируя каждый заказ.";
+        };
+    };
 }
 
 message AcceptOrderRequest {
