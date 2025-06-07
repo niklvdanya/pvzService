@@ -36,19 +36,15 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to init PVZ service: %v", err)
 	}
-	lis, err := net.Listen("tcp", ":50051")
+	lis, err := net.Listen("tcp", cfg.GRPCAddress)
 	if err != nil {
 		log.Fatalf("Failed to listen: %v", err)
 	}
-	// TODO уменьшить main
-	store := memory.NewStore()
-	rate := limiter.Rate{
+	limiterInstance := limiter.New(memory.NewStore(), limiter.Rate{
 		Period: time.Second,
 		Limit:  5,
-	}
-	limiterInstance := limiter.New(store, rate)
-
-	ordersServer := server.NewOrdersServer(pvzService, limiterInstance)
+	})
+	ordersServer := server.NewOrdersServer(pvzService)
 
 	grpcServer := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
@@ -62,7 +58,7 @@ func main() {
 	reflection.Register(grpcServer)
 	ordersServer.Register(grpcServer)
 
-	log.Println("gRPC server listening on :50051")
+	log.Printf("gRPC server listening on %s", cfg.GRPCAddress)
 	if err := grpcServer.Serve(lis); err != nil {
 		log.Fatalf("Failed to serve: %v", err)
 	}

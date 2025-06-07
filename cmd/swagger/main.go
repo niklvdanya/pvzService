@@ -7,15 +7,12 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	httpSwagger "github.com/swaggo/http-swagger"
-)
-
-const (
-	swaggerAddress = "localhost:8081"
+	"gitlab.ozon.dev/safariproxd/homework/internal/config"
 )
 
 func main() {
+	cfg := config.Default()
 	mux := chi.NewMux()
-
 	mux.HandleFunc("/swagger.json", func(w http.ResponseWriter, r *http.Request) {
 		b, err := os.ReadFile("./pkg/api/contract.swagger.json")
 		if err != nil {
@@ -33,8 +30,8 @@ func main() {
 		httpSwagger.URL("/swagger.json"),
 	))
 
-	log.Printf("Listening on %s", swaggerAddress)
-	if err := http.ListenAndServe(swaggerAddress, mux); err != nil {
+	log.Printf("Listening on %s", cfg.SwaggerAddress)
+	if err := http.ListenAndServe(cfg.SwaggerAddress, mux); err != nil {
 		log.Fatalf("failed to listen and serve: %v", err)
 	}
 }
