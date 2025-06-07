@@ -9,6 +9,7 @@ import (
 	"github.com/ulule/limiter/v3"
 	"github.com/ulule/limiter/v3/drivers/store/memory"
 	server "gitlab.ozon.dev/safariproxd/homework/internal/adapter/grpc"
+	"gitlab.ozon.dev/safariproxd/homework/internal/adapter/grpc/mw"
 	"gitlab.ozon.dev/safariproxd/homework/internal/app"
 	"gitlab.ozon.dev/safariproxd/homework/internal/config"
 	"gitlab.ozon.dev/safariproxd/homework/internal/repository/file"
@@ -32,7 +33,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to initialize file order repository: %v", err)
 	}
-	pvzService, err := app.NewPVZService(orderRepo, cfg.PackageConfigFile)
+	pvzService, err := app.NewPVZService(orderRepo, cfg.PackageConfigFile, cfg.ServiceTimeout)
 	if err != nil {
 		log.Fatalf("Failed to init PVZ service: %v", err)
 	}
@@ -48,10 +49,10 @@ func main() {
 
 	grpcServer := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
-			server.LoggingInterceptor(),
-			server.ValidationInterceptor(),
-			server.ErrorMappingInterceptor(),
-			server.RateLimiterInterceptor(limiterInstance),
+			mw.LoggingInterceptor(),
+			mw.ValidationInterceptor(),
+			mw.ErrorMappingInterceptor(),
+			mw.RateLimiterInterceptor(limiterInstance),
 		),
 	)
 

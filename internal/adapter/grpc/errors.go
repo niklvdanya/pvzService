@@ -12,7 +12,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func mapErrorToGRPCStatus(err error) error {
+func MapErrorToGRPCStatus(err error) error {
 	var domainErr domain.Error
 	if errors.As(err, &domainErr) {
 		switch domainErr.Code {

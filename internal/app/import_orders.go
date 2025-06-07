@@ -8,7 +8,7 @@ import (
 	"go.uber.org/multierr"
 )
 
-func (s *PVZService) ImportOrders(orders []domain.OrderToImport) (uint64, error) {
+func (s *PVZService) importOrders(orders []domain.OrderToImport) (uint64, error) {
 	var combinedErr error
 	importedCount := uint64(0)
 	for _, rawOrder := range orders {
@@ -26,7 +26,7 @@ func (s *PVZService) ImportOrders(orders []domain.OrderToImport) (uint64, error)
 			Price:        rawOrder.Price,
 			PackageType:  rawOrder.PackageType,
 		}
-		_, err = s.AcceptOrder(req)
+		_, err = s.acceptOrder(req)
 		if err != nil {
 			combinedErr = multierr.Append(combinedErr, fmt.Errorf("AcceptOrder: %w", err))
 			continue

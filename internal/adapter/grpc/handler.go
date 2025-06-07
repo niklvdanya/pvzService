@@ -23,7 +23,7 @@ func (s *OrdersServer) AcceptOrder(ctx context.Context, req *api.AcceptOrderRequ
 		Price:        float64(req.Price),
 		PackageType:  packageType,
 	}
-	_, err := s.service.AcceptOrder(acceptReq)
+	_, err := s.service.AcceptOrder(ctx, acceptReq)
 	if err != nil {
 		return nil, err
 	}
@@ -34,7 +34,7 @@ func (s *OrdersServer) AcceptOrder(ctx context.Context, req *api.AcceptOrderRequ
 }
 
 func (s *OrdersServer) ReturnOrder(ctx context.Context, req *api.OrderIdRequest) (*api.OrderResponse, error) {
-	err := s.service.ReturnOrderToDelivery(req.OrderId)
+	err := s.service.ReturnOrderToDelivery(ctx, req.OrderId)
 	if err != nil {
 		return nil, err
 	}
@@ -47,9 +47,9 @@ func (s *OrdersServer) ReturnOrder(ctx context.Context, req *api.OrderIdRequest)
 func (s *OrdersServer) ProcessOrders(ctx context.Context, req *api.ProcessOrdersRequest) (*api.ProcessResult, error) {
 	var err error
 	if req.Action == api.ActionType_ACTION_TYPE_ISSUE {
-		err = s.service.IssueOrdersToClient(req.UserId, req.OrderIds)
+		err = s.service.IssueOrdersToClient(ctx, req.UserId, req.OrderIds)
 	} else {
-		err = s.service.ReturnOrdersFromClient(req.UserId, req.OrderIds)
+		err = s.service.ReturnOrdersFromClient(ctx, req.UserId, req.OrderIds)
 	}
 	if err != nil {
 		return processErrors(err, req.OrderIds)
@@ -66,7 +66,7 @@ func (s *OrdersServer) ListOrders(ctx context.Context, req *api.ListOrdersReques
 	if req.LastN != nil {
 		lastN = uint64(*req.LastN)
 	}
-	orders, total, err := s.service.GetReceiverOrders(req.UserId, req.InPvz, lastN, page, limit)
+	orders, total, err := s.service.GetReceiverOrders(ctx, req.UserId, req.InPvz, lastN, page, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +86,7 @@ func (s *OrdersServer) ListReturns(ctx context.Context, req *api.ListReturnsRequ
 		page = uint64(req.Pagination.Page)
 		limit = uint64(req.Pagination.CountOnPage)
 	}
-	orders, _, err := s.service.GetReturnedOrders(page, limit)
+	orders, _, err := s.service.GetReturnedOrders(ctx, page, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +103,7 @@ func (s *OrdersServer) GetHistory(ctx context.Context, req *api.GetHistoryReques
 		page = uint64(req.Pagination.Page)
 		limit = uint64(req.Pagination.CountOnPage)
 	}
-	orders, err := s.service.GetOrderHistory()
+	orders, err := s.service.GetOrderHistory(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -135,7 +135,7 @@ func (s *OrdersServer) ImportOrders(ctx context.Context, req *api.ImportOrdersRe
 			Price:        float64(order.Price),
 		}
 	}
-	imported, err := s.service.ImportOrders(orders)
+	imported, err := s.service.ImportOrders(ctx, orders)
 	if err != nil {
 		return processImportErrors(err, orders), nil
 	}

@@ -1,21 +1,23 @@
 package server
 
 import (
+	"context"
+
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
 	"gitlab.ozon.dev/safariproxd/homework/pkg/api"
 	"google.golang.org/grpc"
 )
 
 type IOrderService interface {
-	AcceptOrder(req domain.AcceptOrderRequest) (float64, error)
-	ReturnOrderToDelivery(orderID uint64) error
-	IssueOrdersToClient(receiverID uint64, orderIDs []uint64) error
-	ReturnOrdersFromClient(receiverID uint64, orderIDs []uint64) error
-	GetReceiverOrders(receiverID uint64, inPVZ bool, lastN, page, limit uint64) ([]*domain.Order, uint64, error)
-	GetReceiverOrdersScroll(receiverID uint64, lastID, limit uint64) ([]*domain.Order, uint64, error)
-	GetReturnedOrders(page, limit uint64) ([]*domain.Order, uint64, error)
-	GetOrderHistory() ([]*domain.Order, error)
-	ImportOrders(orders []domain.OrderToImport) (uint64, error)
+	AcceptOrder(ctx context.Context, req domain.AcceptOrderRequest) (float64, error)
+	ReturnOrderToDelivery(ctx context.Context, orderID uint64) error
+	IssueOrdersToClient(ctx context.Context, receiverID uint64, orderIDs []uint64) error
+	ReturnOrdersFromClient(ctx context.Context, receiverID uint64, orderIDs []uint64) error
+	GetReceiverOrders(ctx context.Context, receiverID uint64, inPVZ bool, lastN, page, limit uint64) ([]*domain.Order, uint64, error)
+	GetReceiverOrdersScroll(ctx context.Context, receiverID uint64, lastID, limit uint64) ([]*domain.Order, uint64, error)
+	GetReturnedOrders(ctx context.Context, page, limit uint64) ([]*domain.Order, uint64, error)
+	GetOrderHistory(ctx context.Context) ([]*domain.Order, error)
+	ImportOrders(ctx context.Context, orders []domain.OrderToImport) (uint64, error)
 }
 
 type OrdersServer struct {

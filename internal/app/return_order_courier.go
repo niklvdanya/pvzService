@@ -8,7 +8,7 @@ import (
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
 )
 
-func (s *PVZService) ReturnOrderToDelivery(orderID uint64) error {
+func (s *PVZService) returnOrderToDelivery(orderID uint64) error {
 	order, err := s.orderRepo.GetByID(orderID)
 	if err != nil {
 		return fmt.Errorf("repo.GetByID: %w", err)

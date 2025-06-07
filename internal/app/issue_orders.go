@@ -9,7 +9,7 @@ import (
 	"go.uber.org/multierr"
 )
 
-func (s *PVZService) IssueOrdersToClient(receiverID uint64, orderIDs []uint64) error {
+func (s *PVZService) issueOrdersToClient(receiverID uint64, orderIDs []uint64) error {
 	var combinedErr error
 	currentTime := time.Now()
 

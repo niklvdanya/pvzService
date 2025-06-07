@@ -1,5 +1,7 @@
 package config
 
+import "time"
+
 type Config struct {
 	OrderDataFile     string
 	OrdersOutputFile  string
@@ -8,6 +10,7 @@ type Config struct {
 	GRPCAddress       string
 	HTTPAddress       string
 	SwaggerAddress    string
+	ServiceTimeout    time.Duration
 }
 
 func Default() *Config {
@@ -19,5 +22,6 @@ func Default() *Config {
 		GRPCAddress:       ":50051",
 		HTTPAddress:       ":8081",
 		SwaggerAddress:    ":8082",
+		ServiceTimeout:    2 * time.Second,
 	}
 }

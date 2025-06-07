@@ -1,4 +1,4 @@
-package server
+package mw
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ulule/limiter/v3"
+	server "gitlab.ozon.dev/safariproxd/homework/internal/adapter/grpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -33,7 +34,7 @@ func ErrorMappingInterceptor() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		resp, err := handler(ctx, req)
 		if err != nil {
-			return resp, mapErrorToGRPCStatus(err)
+			return resp, server.MapErrorToGRPCStatus(err)
 		}
 		return resp, nil
 	}

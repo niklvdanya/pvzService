@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"time"
 
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
 )
@@ -16,19 +17,21 @@ type OrderRepository interface {
 }
 
 type PVZService struct {
-	orderRepo     OrderRepository
-	packageConfig domain.PackageConfig
+	orderRepo      OrderRepository
+	packageConfig  domain.PackageConfig
+	serviceTimeout time.Duration
 }
 
-func NewPVZService(orderRepo OrderRepository, configPath string) (*PVZService, error) {
+func NewPVZService(orderRepo OrderRepository, configPath string, cfg time.Duration) (*PVZService, error) {
 	packageConfig, err := domain.LoadPackageConfig(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load package config: %w", err)
 	}
 
 	return &PVZService{
-		orderRepo:     orderRepo,
-		packageConfig: packageConfig,
+		orderRepo:      orderRepo,
+		packageConfig:  packageConfig,
+		serviceTimeout: cfg,
 	}, nil
 }
 
