@@ -3,3 +3,4 @@ bin/
 *.log
 tutor_makefile.mk
 /vendor.protogen
+.idea/
