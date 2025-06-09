@@ -7,7 +7,7 @@ import (
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
 )
 
-func (s *PVZService) GetReceiverOrders(receiverID uint64, inPVZ bool, lastN, page, limit uint64) ([]*domain.Order, uint64, error) {
+func (s *PVZService) getReceiverOrders(receiverID uint64, inPVZ bool, lastN, page, limit uint64) ([]*domain.Order, uint64, error) {
 	if receiverID == 0 {
 		return nil, 0, fmt.Errorf("validation: %w", domain.ValidationFailedError("receiver ID cannot be empty"))
 	}
@@ -35,23 +35,23 @@ func (s *PVZService) GetReceiverOrders(receiverID uint64, inPVZ bool, lastN, pag
 			paginatedOrders = filteredOrders
 		}
 	} else {
-		paginatedOrders = paginate(filteredOrders, page, limit)
+		paginatedOrders = Paginate(filteredOrders, page, limit)
 	}
 
 	return paginatedOrders, totalItems, nil
 }
 
-func (s *PVZService) GetReturnedOrders(page, limit uint64) ([]*domain.Order, uint64, error) {
+func (s *PVZService) getReturnedOrders(page, limit uint64) ([]*domain.Order, uint64, error) {
 	returnOrders, err := s.orderRepo.GetReturnedOrders()
 	if err != nil {
 		return nil, 0, fmt.Errorf("repo.GetReturnedOrders: %w", err)
 	}
 
-	paginated := paginate(returnOrders, page, limit)
+	paginated := Paginate(returnOrders, page, limit)
 	return paginated, uint64(len(returnOrders)), nil
 }
 
-func (s *PVZService) GetOrderHistory() ([]*domain.Order, error) {
+func (s *PVZService) getOrderHistory() ([]*domain.Order, error) {
 	orders, err := s.orderRepo.GetAllOrders()
 	if err != nil {
 		return nil, fmt.Errorf("repo.GetAllOrders: %w", err)
@@ -63,7 +63,7 @@ func (s *PVZService) GetOrderHistory() ([]*domain.Order, error) {
 	return orders, nil
 }
 
-func (s *PVZService) GetReceiverOrdersScroll(receiverID uint64, lastID, limit uint64) ([]*domain.Order, uint64, error) {
+func (s *PVZService) getReceiverOrdersScroll(receiverID uint64, lastID, limit uint64) ([]*domain.Order, uint64, error) {
 	if receiverID == 0 {
 		return nil, 0, fmt.Errorf("validation: %w", domain.ValidationFailedError("receiver ID cannot be empty"))
 	}

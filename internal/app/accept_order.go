@@ -8,7 +8,7 @@ import (
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
 )
 
-func (s *PVZService) AcceptOrder(req domain.AcceptOrderRequest) (float64, error) {
+func (s *PVZService) acceptOrder(req domain.AcceptOrderRequest) (float64, error) {
 	currentTime := time.Now()
 	if req.StorageUntil.Before(currentTime) {
 		return 0, fmt.Errorf("validation: %w", domain.ValidationFailedError(

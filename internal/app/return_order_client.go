@@ -8,7 +8,7 @@ import (
 	"go.uber.org/multierr"
 )
 
-func (s *PVZService) ReturnOrdersFromClient(receiverID uint64, orderIDs []uint64) error {
+func (s *PVZService) returnOrdersFromClient(receiverID uint64, orderIDs []uint64) error {
 	var combinedErr error
 	currentTime := time.Now()
 
