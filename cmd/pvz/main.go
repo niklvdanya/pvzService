@@ -33,7 +33,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to initialize file order repository: %v", err)
 	}
-	pvzService, err := app.NewPVZService(orderRepo, cfg.PackageConfigFile, cfg.ServiceTimeout)
+	pvzService, err := app.NewPVZService(orderRepo, cfg.PackageConfigFile)
 	if err != nil {
 		log.Fatalf("Failed to init PVZ service: %v", err)
 	}
@@ -49,6 +49,7 @@ func main() {
 
 	grpcServer := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
+			mw.TimeoutInterceptor(cfg.ServiceTimeout),
 			mw.LoggingInterceptor(),
 			mw.ValidationInterceptor(),
 			mw.ErrorMappingInterceptor(),

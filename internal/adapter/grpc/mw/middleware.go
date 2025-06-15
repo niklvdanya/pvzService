@@ -73,3 +73,19 @@ func ValidationInterceptor() grpc.UnaryServerInterceptor {
 		return handler(ctx, req)
 	}
 }
+
+func TimeoutInterceptor(timeout time.Duration) grpc.UnaryServerInterceptor {
+	return func(parent context.Context, req any,
+		info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+
+		ctx, cancel := context.WithTimeout(parent, timeout)
+		defer cancel()
+
+		resp, err := handler(ctx, req)
+
+		if ctx.Err() == context.DeadlineExceeded && err == nil {
+			return nil, status.Error(codes.DeadlineExceeded, "service timeout")
+		}
+		return resp, err
+	}
+}
