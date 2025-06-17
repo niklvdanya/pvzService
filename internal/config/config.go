@@ -1,27 +1,69 @@
 package config
 
-import "time"
+import (
+	"fmt"
+	"os"
+	"time"
+
+	"github.com/caarlos0/env/v10"
+	"github.com/pkg/errors"
+	"gopkg.in/yaml.v3"
+)
+
+/* ---------- публичная структура Config ---------------- */
 
 type Config struct {
-	OrderDataFile     string
-	OrdersOutputFile  string
-	LogFile           string
-	PackageConfigFile string
-	GRPCAddress       string
-	HTTPAddress       string
-	SwaggerAddress    string
-	ServiceTimeout    time.Duration
+	Service struct {
+		GRPCAddress    string        `yaml:"grpc_address"`
+		HTTPAddress    string        `yaml:"http_address"`
+		SwaggerAddress string        `yaml:"swagger_address"`
+		Timeout        time.Duration `yaml:"timeout"`
+	} `yaml:"service"`
+
+	Log struct {
+		File string `yaml:"file"`
+	} `yaml:"log"`
+
+	DB struct {
+		Host string `yaml:"host" env:"POSTGRES_HOST"`
+		Port int    `yaml:"port" env:"POSTGRES_PORT"`
+		Name string `yaml:"name" env:"POSTGRES_DB"`
+		User string `yaml:"-"    env:"POSTGRES_USER"`
+		Pass string `yaml:"-"    env:"POSTGRES_PASSWORD"`
+		SSL  string `yaml:"sslmode"`
+		Pool struct {
+			MaxOpen int `yaml:"max_open"`
+			MaxIdle int `yaml:"max_idle"`
+		} `yaml:"pool"`
+		MigrationsDir string `yaml:"migrations_dir"`
+	} `yaml:"db"`
 }
 
-func Default() *Config {
-	return &Config{
-		OrderDataFile:     "data/orders.json",
-		OrdersOutputFile:  "data/new_orders.json",
-		LogFile:           "pvz.log",
-		PackageConfigFile: "internal/config/packages.json",
-		GRPCAddress:       ":50051",
-		HTTPAddress:       ":8081",
-		SwaggerAddress:    ":8082",
-		ServiceTimeout:    2 * time.Second,
+/* ---------- helper: собрать DSN ------------------------ */
+
+func (c *Config) DSN() string {
+	return fmt.Sprintf(
+		"postgres://%s:%s@%s:%d/%s?sslmode=%s",
+		c.DB.User, c.DB.Pass, c.DB.Host, c.DB.Port, c.DB.Name, c.DB.SSL)
+}
+
+/* ---------- Loader ------------------------------------- */
+
+func Load(path string) (*Config, error) {
+	// 1. YAML
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, errors.Wrap(err, "read yaml")
 	}
+
+	var cfg Config
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return nil, errors.Wrap(err, "parse yaml")
+	}
+
+	// 2. env → перекрывает, если переменные заданы
+	if err := env.Parse(&cfg); err != nil {
+		return nil, errors.Wrap(err, "parse env")
+	}
+	return &cfg, nil
 }

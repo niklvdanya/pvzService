@@ -1,8 +1,6 @@
 package app
 
 import (
-	"fmt"
-
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
 )
 
@@ -13,23 +11,17 @@ type OrderRepository interface {
 	GetByReceiverID(receiverID uint64) ([]*domain.Order, error)
 	GetReturnedOrders() ([]*domain.Order, error)
 	GetAllOrders() ([]*domain.Order, error)
+	GetPackageRules(code string) ([]domain.PackageRules, error)
 }
 
 type PVZService struct {
-	orderRepo     OrderRepository
-	packageConfig domain.PackageConfig
+	orderRepo OrderRepository
 }
 
-func NewPVZService(orderRepo OrderRepository, configPath string) (*PVZService, error) {
-	packageConfig, err := domain.LoadPackageConfig(configPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load package config: %w", err)
-	}
-
+func NewPVZService(orderRepo OrderRepository) *PVZService {
 	return &PVZService{
-		orderRepo:     orderRepo,
-		packageConfig: packageConfig,
-	}, nil
+		orderRepo: orderRepo,
+	}
 }
 
 func Paginate[T any](items []T, currentPage, itemsPerPage uint64) []T {

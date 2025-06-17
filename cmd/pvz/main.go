@@ -12,7 +12,7 @@ import (
 	"gitlab.ozon.dev/safariproxd/homework/internal/adapter/grpc/mw"
 	"gitlab.ozon.dev/safariproxd/homework/internal/app"
 	"gitlab.ozon.dev/safariproxd/homework/internal/config"
-	"gitlab.ozon.dev/safariproxd/homework/internal/repository/file"
+	"gitlab.ozon.dev/safariproxd/homework/internal/repository/postgres"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -27,17 +27,22 @@ func initLogging(path string) {
 }
 
 func main() {
-	cfg := config.Default()
-	initLogging(cfg.LogFile)
-	orderRepo, err := file.NewFileOrderRepository(cfg.OrderDataFile)
+	cfg, err := config.Load("config/config.yaml")
+	if err != nil {
+		log.Fatalf("config: %v", err)
+	}
+	initLogging(cfg.Log.File)
+	db, err := postgres.NewPool(cfg.DSN(), cfg.DB.Pool.MaxOpen, cfg.DB.Pool.MaxIdle)
+	if err != nil {
+		log.Fatalf("db: %v", err)
+	}
+
+	orderRepo := postgres.NewOrderRepository(db)
 	if err != nil {
 		log.Fatalf("Failed to initialize file order repository: %v", err)
 	}
-	pvzService, err := app.NewPVZService(orderRepo, cfg.PackageConfigFile)
-	if err != nil {
-		log.Fatalf("Failed to init PVZ service: %v", err)
-	}
-	lis, err := net.Listen("tcp", cfg.GRPCAddress)
+	pvzService := app.NewPVZService(orderRepo)
+	lis, err := net.Listen("tcp", cfg.Service.GRPCAddress)
 	if err != nil {
 		log.Fatalf("Failed to listen: %v", err)
 	}
@@ -49,7 +54,7 @@ func main() {
 
 	grpcServer := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
-			mw.TimeoutInterceptor(cfg.ServiceTimeout),
+			mw.TimeoutInterceptor(cfg.Service.Timeout),
 			mw.LoggingInterceptor(),
 			mw.ValidationInterceptor(),
 			mw.ErrorMappingInterceptor(),
@@ -60,7 +65,7 @@ func main() {
 	reflection.Register(grpcServer)
 	ordersServer.Register(grpcServer)
 
-	log.Printf("gRPC server listening on %s", cfg.GRPCAddress)
+	log.Printf("gRPC server listening on %s", cfg.Service.GRPCAddress)
 	if err := grpcServer.Serve(lis); err != nil {
 		log.Fatalf("Failed to serve: %v", err)
 	}

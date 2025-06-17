@@ -1,0 +1,18 @@
+service:
+  grpc_address: ":50051"
+  http_address: ":8081"
+  swagger_address: ":8082"
+  timeout: 2s      
+
+log:
+  file: pvz.log      
+
+db:
+  host: localhost   
+  port: 5432
+  name: pvz
+  sslmode: disable
+  pool:
+    max_open: 10
+    max_idle: 5
+  migrations_dir: migrations
