@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 
 	_ "github.com/lib/pq"
@@ -20,7 +20,7 @@ const (
 type Client struct {
 	readDB  *sql.DB
 	writeDB *sql.DB
-	logger  *log.Logger
+	logger  *slog.Logger
 }
 
 type Config struct {
@@ -36,7 +36,7 @@ func NewClient(cfg Config) (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to open log file: %w", err)
 	}
-	logger := log.New(logFile, "DB: ", 0)
+	logger := slog.New(slog.NewTextHandler(logFile, nil))
 
 	readDB, err := sql.Open("postgres", cfg.ReadDSN)
 	if err != nil {
@@ -79,20 +79,20 @@ func (c *Client) Exec(ctx context.Context, mode ClientMode, query string, args .
 	db := c.getDB(mode)
 	result, err := db.ExecContext(ctx, query, args...)
 	if err != nil {
-		c.logger.Printf("Error executing query: %v", err)
+		c.logger.Error("Error executing query", "error", err)
 		return nil, fmt.Errorf("exec query: %w", err)
 	}
-	c.logger.Printf("Query executed successfully")
+	c.logger.Info("Query executed successfully")
 	return result, nil
 }
 
 func (c *Client) Query(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
 	rows, err := c.readDB.QueryContext(ctx, query, args...)
 	if err != nil {
-		c.logger.Printf("Error executing query: %v", err)
+		c.logger.Error("Error executing query", "error", err)
 		return nil, fmt.Errorf("query: %w", err)
 	}
-	c.logger.Printf("Query executed successfully")
+	c.logger.Info("Query executed successfully")
 	return rows, nil
 }
 
@@ -104,10 +104,10 @@ func (c *Client) QueryRow(ctx context.Context, query string, args ...interface{}
 func (c *Client) BeginTx(ctx context.Context) (*Tx, error) {
 	tx, err := c.writeDB.BeginTx(ctx, nil)
 	if err != nil {
-		c.logger.Printf("Error starting transaction: %v", err)
+		c.logger.Error("Error starting transaction", "error", err)
 		return nil, fmt.Errorf("begin transaction: %w", err)
 	}
-	c.logger.Printf("Transaction started")
+	c.logger.Info("Transaction started")
 	return &Tx{tx: tx, logger: c.logger}, nil
 }
 
@@ -120,26 +120,26 @@ func (c *Client) getDB(mode ClientMode) *sql.DB {
 
 type Tx struct {
 	tx     *sql.Tx
-	logger *log.Logger
+	logger *slog.Logger
 }
 
 func (t *Tx) Exec(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
 	result, err := t.tx.ExecContext(ctx, query, args...)
 	if err != nil {
-		t.logger.Printf("Error executing query: %v", err)
+		t.logger.Error("Error executing query", "error", err)
 		return nil, fmt.Errorf("exec query: %w", err)
 	}
-	t.logger.Printf("Query executed successfully")
+	t.logger.Info("Query executed successfully")
 	return result, nil
 }
 
 func (t *Tx) Query(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
 	rows, err := t.tx.QueryContext(ctx, query, args...)
 	if err != nil {
-		t.logger.Printf("Error executing query: %v", err)
+		t.logger.Error("Error executing query", "error", err)
 		return nil, fmt.Errorf("query: %w", err)
 	}
-	t.logger.Printf("Query executed successfully")
+	t.logger.Info("Query executed successfully")
 	return rows, nil
 }
 
@@ -151,19 +151,19 @@ func (t *Tx) QueryRow(ctx context.Context, query string, args ...interface{}) *s
 func (t *Tx) Commit() error {
 	err := t.tx.Commit()
 	if err != nil {
-		t.logger.Printf("Error committing transaction: %v", err)
+		t.logger.Error("Error committing transaction", "error", err)
 		return fmt.Errorf("commit transaction: %w", err)
 	}
-	t.logger.Printf("Transaction committed")
+	t.logger.Info("Transaction committed")
 	return nil
 }
 
 func (t *Tx) Rollback() error {
 	err := t.tx.Rollback()
 	if err != nil {
-		t.logger.Printf("Error rolling back transaction: %v", err)
+		t.logger.Error("Error rolling back transaction", "error", err)
 		return fmt.Errorf("rollback transaction: %w", err)
 	}
-	t.logger.Printf("Transaction rolled back")
+	t.logger.Info("Transaction rolled back")
 	return nil
 }

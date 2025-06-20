@@ -1,7 +1,7 @@
 package main
 
 import (
-	"log"
+	"log/slog"
 	"net"
 	"os"
 	"time"
@@ -21,15 +21,17 @@ import (
 func initLogging(path string) {
 	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		log.Fatalf("Failed to open log file: %v", err)
+		slog.Error("Failed to open log file", "error", err)
+		os.Exit(1)
 	}
-	log.SetOutput(file)
+	slog.SetDefault(slog.New(slog.NewTextHandler(file, nil)))
 }
 
 func main() {
 	cfg, err := config.Load("config/config.yaml")
 	if err != nil {
-		log.Fatalf("config: %v", err)
+		slog.Error("Config load failed", "error", err)
+		os.Exit(1)
 	}
 	initLogging(cfg.Log.File)
 	dbCfg := db.Config{
@@ -41,14 +43,16 @@ func main() {
 	}
 	client, err := db.NewClient(dbCfg)
 	if err != nil {
-		log.Fatalf("db client: %v", err)
+		slog.Error("DB client creation failed", "error", err)
+		os.Exit(1)
 	}
 	defer client.Close()
 	orderRepo := postgres.NewOrderRepository(client)
 	pvzService := app.NewPVZService(orderRepo)
 	lis, err := net.Listen("tcp", cfg.Service.GRPCAddress)
 	if err != nil {
-		log.Fatalf("Failed to listen: %v", err)
+		slog.Error("Failed to listen", "error", err)
+		os.Exit(1)
 	}
 	limiterInstance := limiter.New(memory.NewStore(), limiter.Rate{
 		Period: time.Second,
@@ -69,8 +73,9 @@ func main() {
 	reflection.Register(grpcServer)
 	ordersServer.Register(grpcServer)
 
-	log.Printf("gRPC server listening on %s", cfg.Service.GRPCAddress)
+	slog.Info("gRPC server listening on", "address", cfg.Service.GRPCAddress)
 	if err := grpcServer.Serve(lis); err != nil {
-		log.Fatalf("Failed to serve: %v", err)
+		slog.Error("Failed to serve", "error", err)
+		os.Exit(1)
 	}
 }
