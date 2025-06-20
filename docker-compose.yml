@@ -5,15 +5,21 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     env_file: ./config/.env
+    environment:
+      - POSTGRES_LOG_STATEMENT=all
+      - POSTGRES_LOG_CONNECTIONS=on
+      - POSTGRES_LOG_DISCONNECTIONS=on
     healthcheck:
-      test: ["CMD", "sh", "-c", "pg_isready -U $$POSTGRES_USER"]
+      test: ["CMD", "sh", "-c", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
-      timeout: 3s
-      retries: 5
+      timeout: 10s
+      retries: 10
     ports:
-      - "5433:5432"     
+      - "5433:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
+    networks:
+      - pvz-network
 
   migrate:
     image: golang:1.23-alpine
@@ -25,12 +31,13 @@ services:
       sh -c "
         apk add --no-cache git &&
         go install github.com/pressly/goose/v3/cmd/goose@latest &&
-        goose -dir ./migrations postgres \"postgres://$$POSTGRES_USER:$$POSTGRES_PASSWORD@$$POSTGRES_HOST:$$POSTGRES_PORT/$$POSTGRES_DB?sslmode=disable\" up
+        goose -dir ./migrations postgres \"postgres://$$POSTGRES_USER:$$POSTGRES_PASSWORD@db:5432/$$POSTGRES_DB?sslmode=disable\" up
       "
     depends_on:
       db:
         condition: service_healthy
-
+    networks:
+      - pvz-network
 
   app:
     image: golang:1.23-alpine
@@ -44,6 +51,8 @@ services:
         condition: service_completed_successfully
     ports:
       - "50051:50051"
+    networks:
+      - pvz-network
 
   gateway:
     image: golang:1.23-alpine
@@ -57,6 +66,8 @@ services:
         condition: service_started
     ports:
       - "8081:8081"
+    networks:
+      - pvz-network
 
   swagger:
     image: golang:1.23-alpine
@@ -69,6 +80,12 @@ services:
         condition: service_started
     ports:
       - "8082:8082"
+    networks:
+      - pvz-network
 
 volumes:
   db-data:
+
+networks:
+  pvz-network:
+    driver: bridge

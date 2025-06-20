@@ -13,11 +13,11 @@ import (
 	"gitlab.ozon.dev/safariproxd/homework/internal/app"
 	"gitlab.ozon.dev/safariproxd/homework/internal/config"
 	"gitlab.ozon.dev/safariproxd/homework/internal/repository/postgres"
+	"gitlab.ozon.dev/safariproxd/homework/pkg/db"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
 
-// TODO исправить нейминг пакетов и директорий
 func initLogging(path string) {
 	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -32,15 +32,19 @@ func main() {
 		log.Fatalf("config: %v", err)
 	}
 	initLogging(cfg.Log.File)
-	db, err := postgres.NewPool(cfg.DSN(), cfg.DB.Pool.MaxOpen, cfg.DB.Pool.MaxIdle)
-	if err != nil {
-		log.Fatalf("db: %v", err)
+	dbCfg := db.Config{
+		ReadDSN:  cfg.ReadDSN(),
+		WriteDSN: cfg.WriteDSN(),
+		MaxOpen:  cfg.DB.Pool.MaxOpen,
+		MaxIdle:  cfg.DB.Pool.MaxIdle,
+		LogFile:  cfg.Log.File,
 	}
-
-	orderRepo := postgres.NewOrderRepository(db)
+	client, err := db.NewClient(dbCfg)
 	if err != nil {
-		log.Fatalf("Failed to initialize file order repository: %v", err)
+		log.Fatalf("db client: %v", err)
 	}
+	defer client.Close()
+	orderRepo := postgres.NewOrderRepository(client)
 	pvzService := app.NewPVZService(orderRepo)
 	lis, err := net.Listen("tcp", cfg.Service.GRPCAddress)
 	if err != nil {

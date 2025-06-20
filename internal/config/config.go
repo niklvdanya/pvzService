@@ -23,13 +23,14 @@ type Config struct {
 	} `yaml:"log"`
 
 	DB struct {
-		Host string `yaml:"host" env:"POSTGRES_HOST"`
-		Port int    `yaml:"port" env:"POSTGRES_PORT"`
-		Name string `yaml:"name" env:"POSTGRES_DB"`
-		User string `yaml:"-"    env:"POSTGRES_USER"`
-		Pass string `yaml:"-"    env:"POSTGRES_PASSWORD"`
-		SSL  string `yaml:"sslmode"`
-		Pool struct {
+		ReadHost  string `yaml:"read_host" env:"POSTGRES_READ_HOST"`
+		WriteHost string `yaml:"write_host" env:"POSTGRES_WRITE_HOST"`
+		Port      int    `yaml:"port" env:"POSTGRES_PORT"`
+		Name      string `yaml:"name" env:"POSTGRES_DB"`
+		User      string `yaml:"-" env:"POSTGRES_USER"`
+		Pass      string `yaml:"-" env:"POSTGRES_PASSWORD"`
+		SSL       string `yaml:"sslmode"`
+		Pool      struct {
 			MaxOpen int `yaml:"max_open"`
 			MaxIdle int `yaml:"max_idle"`
 		} `yaml:"pool"`
@@ -37,10 +38,16 @@ type Config struct {
 	} `yaml:"db"`
 }
 
-func (c *Config) DSN() string {
+func (c *Config) ReadDSN() string {
 	return fmt.Sprintf(
 		"postgres://%s:%s@%s:%d/%s?sslmode=%s",
-		c.DB.User, c.DB.Pass, c.DB.Host, c.DB.Port, c.DB.Name, c.DB.SSL)
+		c.DB.User, c.DB.Pass, c.DB.ReadHost, c.DB.Port, c.DB.Name, c.DB.SSL)
+}
+
+func (c *Config) WriteDSN() string {
+	return fmt.Sprintf(
+		"postgres://%s:%s@%s:%d/%s?sslmode=%s",
+		c.DB.User, c.DB.Pass, c.DB.WriteHost, c.DB.Port, c.DB.Name, c.DB.SSL)
 }
 
 func Load(path string) (*Config, error) {

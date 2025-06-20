@@ -2,8 +2,7 @@
 
 -- +goose StatementBegin
 CREATE TABLE IF NOT EXISTS receivers (
-    id TEXT PRIMARY KEY,
-    created_at TIMESTAMPTZ DEFAULT now()
+    id TEXT PRIMARY KEY
 );
 -- +goose StatementEnd
 

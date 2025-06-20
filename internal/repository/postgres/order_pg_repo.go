@@ -1,169 +1,304 @@
 package postgres
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
+	"gitlab.ozon.dev/safariproxd/homework/pkg/db"
 )
 
-type OrderPGRepository struct {
-	db *sql.DB
+type OrderRepository struct {
+	client *db.Client
 }
 
-func NewOrderRepository(db *sql.DB) *OrderPGRepository {
-	return &OrderPGRepository{db: db}
+func NewOrderRepository(client *db.Client) *OrderRepository {
+	return &OrderRepository{client: client}
 }
 
-const orderFields = `
-    id, receiver_id, status, expires_at,
-    accept_time, last_update_time,
-    package_code, weight, price
-`
-
-func scanOrder(row scannable) (*domain.Order, error) {
-	var o domain.Order
-	var pkg sql.NullString
-	if err := row.Scan(
-		&o.OrderID, &o.ReceiverID, &o.Status, &o.StorageUntil,
-		&o.AcceptTime, &o.LastUpdateTime,
-		&pkg, &o.Weight, &o.Price,
-	); err != nil {
-		return nil, err
+func (r *OrderRepository) Save(order *domain.Order) error {
+	query := `
+		INSERT INTO orders (id, receiver_id, expires_at, status, accept_time, last_update_time, package_code, weight, price)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+	`
+	ctx := context.Background()
+	tx, err := r.client.BeginTx(ctx)
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
 	}
-	if pkg.Valid {
-		o.PackageType = pkg.String
+	var exists int
+	err = tx.QueryRow(ctx, `
+		SELECT 1 FROM orders WHERE id = $1
+	`, order.OrderID).Scan(&exists)
+	if err == nil {
+		tx.Rollback()
+		return fmt.Errorf("save: %w", domain.OrderAlreadyExistsError(order.OrderID))
 	}
-	return &o, nil
-}
+	if err != sql.ErrNoRows {
+		tx.Rollback()
+		return fmt.Errorf("check existence: %w", err)
+	}
 
-type scannable interface {
-	Scan(dest ...any) error
-}
-
-func (r *OrderPGRepository) Save(order *domain.Order) error {
-	const q = `INSERT INTO orders (` + orderFields + `)
-               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`
-	_, err := r.db.Exec(
-		q,
-		order.OrderID, order.ReceiverID, order.Status, order.StorageUntil,
-		order.AcceptTime, order.LastUpdateTime,
-		nullable(order.PackageType), order.Weight, order.Price,
+	_, err = tx.Exec(ctx, query,
+		order.OrderID,
+		order.ReceiverID,
+		order.StorageUntil,
+		order.Status,
+		order.AcceptTime,
+		order.LastUpdateTime,
+		order.PackageType,
+		order.Weight,
+		order.Price,
 	)
 	if err != nil {
-		return fmt.Errorf("insert order: %w", err)
+		tx.Rollback()
+		return fmt.Errorf("exec insert: %w", err)
 	}
-	return nil
+
+	return tx.Commit()
 }
 
-func (r *OrderPGRepository) GetByID(orderID uint64) (*domain.Order, error) {
-	const q = `SELECT ` + orderFields + ` FROM orders WHERE id=$1`
-	row := r.db.QueryRow(q, orderID)
-	o, err := scanOrder(row)
+func (r *OrderRepository) GetByID(orderID uint64) (*domain.Order, error) {
+	query := `
+		SELECT id, receiver_id, expires_at, status, accept_time, last_update_time, package_code, weight, price
+		FROM orders
+		WHERE id = $1
+	`
+	ctx := context.Background()
+	row := r.client.QueryRow(ctx, query, orderID)
+
+	var order domain.Order
+	var expiresAt, acceptTime, lastUpdateTime time.Time
+	var packageCode sql.NullString
+
+	err := row.Scan(
+		&order.OrderID,
+		&order.ReceiverID,
+		&expiresAt,
+		&order.Status,
+		&acceptTime,
+		&lastUpdateTime,
+		&packageCode,
+		&order.Weight,
+		&order.Price,
+	)
 	if err == sql.ErrNoRows {
-		return nil, domain.EntityNotFoundError("Order", fmt.Sprintf("%d", orderID))
+		return nil, fmt.Errorf("get by id: %w", domain.EntityNotFoundError("Order", fmt.Sprintf("%d", orderID)))
 	}
-	return o, err
+	if err != nil {
+		return nil, fmt.Errorf("scan: %w", err)
+	}
+
+	order.StorageUntil = expiresAt
+	order.AcceptTime = acceptTime
+	order.LastUpdateTime = lastUpdateTime
+	order.PackageType = packageCode.String
+
+	return &order, nil
 }
 
-func (r *OrderPGRepository) Update(o *domain.Order) error {
-	const q = `
-        UPDATE orders
-           SET status=$2, expires_at=$3, last_update_time=$4,
-               package_code=$5, weight=$6, price=$7
-         WHERE id=$1`
-	_, err := r.db.Exec(q,
-		o.OrderID, o.Status, o.StorageUntil, o.LastUpdateTime,
-		nullable(o.PackageType), o.Weight, o.Price,
+func (r *OrderRepository) Update(order *domain.Order) error {
+	query := `
+		UPDATE orders
+		SET receiver_id = $2, expires_at = $3, status = $4, accept_time = $5, last_update_time = $6, package_code = $7, weight = $8, price = $9
+		WHERE id = $1
+	`
+	ctx := context.Background()
+	tx, err := r.client.BeginTx(ctx)
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+
+	result, err := tx.Exec(ctx, query,
+		order.OrderID,
+		order.ReceiverID,
+		order.StorageUntil,
+		order.Status,
+		order.AcceptTime,
+		order.LastUpdateTime,
+		order.PackageType,
+		order.Weight,
+		order.Price,
 	)
-	return err
-}
-
-func (r *OrderPGRepository) Delete(orderID uint64) error {
-	_, err := r.db.Exec(`DELETE FROM orders WHERE id=$1`, orderID)
-	return err
-}
-
-func (r *OrderPGRepository) GetByReceiverID(receiverID uint64) ([]*domain.Order, error) {
-	const q = `SELECT ` + orderFields + ` FROM orders
-               WHERE receiver_id=$1 AND status IN (0,1)`
-	rows, err := r.db.Query(q, receiverID)
 	if err != nil {
-		return nil, err
+		tx.Rollback()
+		return fmt.Errorf("exec update: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("rows affected: %w", err)
+	}
+	if rowsAffected == 0 {
+		tx.Rollback()
+		return fmt.Errorf("update: %w", domain.EntityNotFoundError("Order", fmt.Sprintf("%d", order.OrderID)))
+	}
+
+	return tx.Commit()
+}
+
+func (r *OrderRepository) GetByReceiverID(receiverID uint64) ([]*domain.Order, error) {
+	query := `
+		SELECT id, receiver_id, expires_at, status, accept_time, last_update_time, package_code, weight, price
+		FROM orders
+		WHERE receiver_id = $1
+	`
+	ctx := context.Background()
+	rows, err := r.client.Query(ctx, query, receiverID)
+	if err != nil {
+		return nil, fmt.Errorf("query: %w", err)
 	}
 	defer rows.Close()
 
-	var res []*domain.Order
+	var orders []*domain.Order
 	for rows.Next() {
-		o, err := scanOrder(rows)
+		var order domain.Order
+		var expiresAt, acceptTime, lastUpdateTime time.Time
+		var packageCode sql.NullString
+
+		err := rows.Scan(
+			&order.OrderID,
+			&order.ReceiverID,
+			&expiresAt,
+			&order.Status,
+			&acceptTime,
+			&lastUpdateTime,
+			&packageCode,
+			&order.Weight,
+			&order.Price,
+		)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("scan: %w", err)
 		}
-		res = append(res, o)
+
+		order.StorageUntil = expiresAt
+		order.AcceptTime = acceptTime
+		order.LastUpdateTime = lastUpdateTime
+		order.PackageType = packageCode.String
+		orders = append(orders, &order)
 	}
-	return res, rows.Err()
+
+	return orders, nil
 }
 
-func (r *OrderPGRepository) GetAllOrders() ([]*domain.Order, error) {
-	rows, err := r.db.Query(`SELECT ` + orderFields + ` FROM orders`)
+func (r *OrderRepository) GetReturnedOrders() ([]*domain.Order, error) {
+	query := `
+		SELECT id, receiver_id, expires_at, status, accept_time, last_update_time, package_code, weight, price
+		FROM orders
+		WHERE status IN ($1, $2)
+		ORDER BY last_update_time DESC
+	`
+	ctx := context.Background()
+	rows, err := r.client.Query(ctx, query, domain.StatusReturnedFromClient, domain.StatusGivenToCourier)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("query: %w", err)
 	}
 	defer rows.Close()
-	var res []*domain.Order
+
+	var orders []*domain.Order
 	for rows.Next() {
-		o, err := scanOrder(rows)
+		var order domain.Order
+		var expiresAt, acceptTime, lastUpdateTime time.Time
+		var packageCode sql.NullString
+
+		err := rows.Scan(
+			&order.OrderID,
+			&order.ReceiverID,
+			&expiresAt,
+			&order.Status,
+			&acceptTime,
+			&lastUpdateTime,
+			&packageCode,
+			&order.Weight,
+			&order.Price,
+		)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("scan: %w", err)
 		}
-		res = append(res, o)
+
+		order.StorageUntil = expiresAt
+		order.AcceptTime = acceptTime
+		order.LastUpdateTime = lastUpdateTime
+		order.PackageType = packageCode.String
+		orders = append(orders, &order)
 	}
-	return res, rows.Err()
+
+	return orders, nil
 }
 
-func (r *OrderPGRepository) GetReturnedOrders() ([]*domain.Order, error) {
-	const q = `SELECT ` + orderFields + ` FROM orders
-               WHERE status IN (2,4)`
-	rows, err := r.db.Query(q)
+func (r *OrderRepository) GetAllOrders() ([]*domain.Order, error) {
+	query := `
+		SELECT id, receiver_id, expires_at, status, accept_time, last_update_time, package_code, weight, price
+		FROM orders
+		ORDER BY last_update_time DESC
+	`
+	ctx := context.Background()
+	rows, err := r.client.Query(ctx, query)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("query: %w", err)
 	}
 	defer rows.Close()
-	var res []*domain.Order
+
+	var orders []*domain.Order
 	for rows.Next() {
-		o, err := scanOrder(rows)
+		var order domain.Order
+		var expiresAt, acceptTime, lastUpdateTime time.Time
+		var packageCode sql.NullString
+
+		err := rows.Scan(
+			&order.OrderID,
+			&order.ReceiverID,
+			&expiresAt,
+			&order.Status,
+			&acceptTime,
+			&lastUpdateTime,
+			&packageCode,
+			&order.Weight,
+			&order.Price,
+		)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("scan: %w", err)
 		}
-		res = append(res, o)
+
+		order.StorageUntil = expiresAt
+		order.AcceptTime = acceptTime
+		order.LastUpdateTime = lastUpdateTime
+		order.PackageType = packageCode.String
+		orders = append(orders, &order)
 	}
-	return res, rows.Err()
+
+	return orders, nil
 }
 
-func (r *OrderPGRepository) GetPackageRules(code string) ([]domain.PackageRules, error) {
-	const q = `SELECT max_weight, extra_price FROM package_types WHERE code = $1`
-	rows, err := r.db.Query(q, code)
+func (r *OrderRepository) GetPackageRules(code string) ([]domain.PackageRules, error) {
+	query := `
+		SELECT max_weight, extra_price
+		FROM package_types
+		WHERE code = $1
+	`
+	ctx := context.Background()
+	rows, err := r.client.Query(ctx, query, code)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("query: %w", err)
 	}
+	defer rows.Close()
 
-	var res []domain.PackageRules
+	var rules []domain.PackageRules
 	for rows.Next() {
-		var pr domain.PackageRules
-		if err := rows.Scan(&pr.MaxWeight, &pr.Price); err != nil {
-			return nil, err
+		var rule domain.PackageRules
+		err := rows.Scan(&rule.MaxWeight, &rule.Price)
+		if err != nil {
+			return nil, fmt.Errorf("scan: %w", err)
 		}
-		res = append(res, pr)
+		rules = append(rules, rule)
 	}
-	if len(res) == 0 {
-		return nil, domain.InvalidPackageError(code)
-	}
-	return res, nil
-}
 
-func nullable(s string) sql.NullString {
-	if s == "" {
-		return sql.NullString{}
+	if len(rules) == 0 {
+		return nil, fmt.Errorf("no rules found for package code %s", code)
 	}
-	return sql.NullString{String: s, Valid: true}
+
+	return rules, nil
 }

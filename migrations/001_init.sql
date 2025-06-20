@@ -21,7 +21,10 @@ CREATE TABLE orders (
     price            NUMERIC(10,2) NOT NULL
 );
 
+CREATE INDEX idx_orders_receiver_status ON orders (receiver_id, status);
+
 -- +goose Down
+DROP INDEX IF EXISTS idx_orders_receiver_status;
 DROP TABLE IF EXISTS orders;
 DROP TABLE IF EXISTS package_types;
 DROP TABLE IF EXISTS receivers;
