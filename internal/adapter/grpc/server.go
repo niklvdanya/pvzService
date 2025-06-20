@@ -17,6 +17,7 @@ type IOrderService interface {
 	GetReceiverOrdersScroll(ctx context.Context, receiverID uint64, lastID, limit uint64) ([]*domain.Order, uint64, error)
 	GetReturnedOrders(ctx context.Context, page, limit uint64) ([]*domain.Order, uint64, error)
 	GetOrderHistory(ctx context.Context) ([]*domain.Order, error)
+	GetOrderHistoryByID(ctx context.Context, orderID uint64) ([]*domain.OrderHistory, error)
 	ImportOrders(ctx context.Context, orders []domain.OrderToImport) (uint64, error)
 }
 

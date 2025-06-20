@@ -50,6 +50,10 @@ func (s *PVZService) GetOrderHistory(ctx context.Context) ([]*domain.Order, erro
 	return s.getOrderHistory()
 }
 
+func (s *PVZService) GetOrderHistoryByID(ctx context.Context, orderID uint64) ([]*domain.OrderHistory, error) {
+	return s.getOrderHistoryByID(orderID)
+}
+
 func (s *PVZService) ImportOrders(ctx context.Context, orders []domain.OrderToImport) (uint64, error) {
 	return s.importOrders(orders)
 }

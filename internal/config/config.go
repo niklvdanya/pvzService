@@ -10,8 +10,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-/* ---------- публичная структура Config ---------------- */
-
 type Config struct {
 	Service struct {
 		GRPCAddress    string        `yaml:"grpc_address"`
@@ -39,18 +37,13 @@ type Config struct {
 	} `yaml:"db"`
 }
 
-/* ---------- helper: собрать DSN ------------------------ */
-
 func (c *Config) DSN() string {
 	return fmt.Sprintf(
 		"postgres://%s:%s@%s:%d/%s?sslmode=%s",
 		c.DB.User, c.DB.Pass, c.DB.Host, c.DB.Port, c.DB.Name, c.DB.SSL)
 }
 
-/* ---------- Loader ------------------------------------- */
-
 func Load(path string) (*Config, error) {
-	// 1. YAML
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, errors.Wrap(err, "read yaml")
@@ -61,7 +54,6 @@ func Load(path string) (*Config, error) {
 		return nil, errors.Wrap(err, "parse yaml")
 	}
 
-	// 2. env → перекрывает, если переменные заданы
 	if err := env.Parse(&cfg); err != nil {
 		return nil, errors.Wrap(err, "parse env")
 	}

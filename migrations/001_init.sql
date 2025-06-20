@@ -21,15 +21,7 @@ CREATE TABLE orders (
     price            NUMERIC(10,2) NOT NULL
 );
 
-CREATE TABLE order_history (
-    id            BIGSERIAL   PRIMARY KEY,
-    order_id      BIGINT      NOT NULL REFERENCES orders(id),
-    status        SMALLINT    NOT NULL,
-    changed_at    TIMESTAMPTZ NOT NULL
-);
-
 -- +goose Down
-DROP TABLE IF EXISTS order_history;
 DROP TABLE IF EXISTS orders;
 DROP TABLE IF EXISTS package_types;
 DROP TABLE IF EXISTS receivers;

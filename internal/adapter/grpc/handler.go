@@ -119,6 +119,22 @@ func (s *OrdersServer) GetHistory(ctx context.Context, req *api.GetHistoryReques
 	return &api.OrderHistoryList{History: history}, nil
 }
 
+func (s *OrdersServer) GetOrderHistory(ctx context.Context, req *api.OrderHistoryRequest) (*api.OrderHistoryResponse, error) {
+	history, err := s.service.GetOrderHistoryByID(ctx, req.OrderId)
+	if err != nil {
+		return nil, err
+	}
+	protoHistory := make([]*api.OrderHistory, len(history))
+	for i, record := range history {
+		protoHistory[i] = &api.OrderHistory{
+			OrderId:   record.OrderID,
+			Status:    mapDomainStatusToProto(record.Status),
+			CreatedAt: timestamppb.New(record.ChangedAt),
+		}
+	}
+	return &api.OrderHistoryResponse{History: protoHistory}, nil
+}
+
 func (s *OrdersServer) ImportOrders(ctx context.Context, req *api.ImportOrdersRequest) (*api.ImportResult, error) {
 	orders := make([]domain.OrderToImport, len(req.Orders))
 	for i, order := range req.Orders {

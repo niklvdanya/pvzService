@@ -89,6 +89,15 @@ service OrdersService {
             description: "Импортирует несколько заказов из предоставленного списка, валидируя каждый заказ.";
         };
     };
+    rpc GetOrderHistory (OrderHistoryRequest) returns (OrderHistoryResponse) {
+        option (google.api.http) = {
+            get: "/v1/orders/{order_id}/history"
+        };
+        option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+            summary: "Получить историю статусов по заказу";
+            description: "Возвращает историю изменений статуса для указанного заказа, отсортированную по убыванию времени изменения. Если заказ не найден, возвращается ошибка.";
+        };
+    };
 }
 
 message AcceptOrderRequest {
@@ -138,6 +147,14 @@ message ImportOrdersRequest {
 
 message GetHistoryRequest {
     Pagination pagination = 1;
+}
+
+message OrderHistoryRequest {
+    uint64 order_id = 1 [(validate.rules).uint64.gt = 0];
+}
+
+message OrderHistoryResponse {
+    repeated OrderHistory history = 1;
 }
 
 message OrderResponse {

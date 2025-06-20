@@ -26,6 +26,12 @@ type Order struct {
 	Price          float64
 }
 
+type OrderHistory struct {
+	OrderID   uint64
+	Status    OrderStatus
+	ChangedAt time.Time
+}
+
 type OrderToImport struct {
 	OrderID      uint64  `json:"order_id"`
 	ReceiverID   uint64  `json:"receiver_id"`

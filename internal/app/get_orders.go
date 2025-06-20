@@ -63,6 +63,31 @@ func (s *PVZService) getOrderHistory() ([]*domain.Order, error) {
 	return orders, nil
 }
 
+func (s *PVZService) getOrderHistoryByID(orderID uint64) ([]*domain.OrderHistory, error) {
+	if orderID == 0 {
+		return nil, fmt.Errorf("validation: %w", domain.ValidationFailedError("order ID cannot be empty"))
+	}
+
+	order, err := s.orderRepo.GetByID(orderID)
+	if err != nil {
+		return nil, fmt.Errorf("repo.GetByID: %w", err)
+	}
+
+	history := []*domain.OrderHistory{
+		{
+			OrderID:   order.OrderID,
+			Status:    order.Status,
+			ChangedAt: order.LastUpdateTime,
+		},
+	}
+
+	sort.Slice(history, func(i, j int) bool {
+		return history[i].ChangedAt.After(history[j].ChangedAt)
+	})
+
+	return history, nil
+}
+
 func (s *PVZService) getReceiverOrdersScroll(receiverID uint64, lastID, limit uint64) ([]*domain.Order, uint64, error) {
 	if receiverID == 0 {
 		return nil, 0, fmt.Errorf("validation: %w", domain.ValidationFailedError("receiver ID cannot be empty"))

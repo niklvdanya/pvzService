@@ -1196,6 +1196,255 @@ var _ interface {
 	ErrorName() string
 } = GetHistoryRequestValidationError{}
 
+// Validate checks the field values on OrderHistoryRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *OrderHistoryRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on OrderHistoryRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// OrderHistoryRequestMultiError, or nil if none found.
+func (m *OrderHistoryRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *OrderHistoryRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if m.GetOrderId() <= 0 {
+		err := OrderHistoryRequestValidationError{
+			field:  "OrderId",
+			reason: "value must be greater than 0",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if len(errors) > 0 {
+		return OrderHistoryRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// OrderHistoryRequestMultiError is an error wrapping multiple validation
+// errors returned by OrderHistoryRequest.ValidateAll() if the designated
+// constraints aren't met.
+type OrderHistoryRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m OrderHistoryRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m OrderHistoryRequestMultiError) AllErrors() []error { return m }
+
+// OrderHistoryRequestValidationError is the validation error returned by
+// OrderHistoryRequest.Validate if the designated constraints aren't met.
+type OrderHistoryRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e OrderHistoryRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e OrderHistoryRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e OrderHistoryRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e OrderHistoryRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e OrderHistoryRequestValidationError) ErrorName() string {
+	return "OrderHistoryRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e OrderHistoryRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sOrderHistoryRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = OrderHistoryRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = OrderHistoryRequestValidationError{}
+
+// Validate checks the field values on OrderHistoryResponse with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *OrderHistoryResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on OrderHistoryResponse with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// OrderHistoryResponseMultiError, or nil if none found.
+func (m *OrderHistoryResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *OrderHistoryResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	for idx, item := range m.GetHistory() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, OrderHistoryResponseValidationError{
+						field:  fmt.Sprintf("History[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, OrderHistoryResponseValidationError{
+						field:  fmt.Sprintf("History[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return OrderHistoryResponseValidationError{
+					field:  fmt.Sprintf("History[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	if len(errors) > 0 {
+		return OrderHistoryResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// OrderHistoryResponseMultiError is an error wrapping multiple validation
+// errors returned by OrderHistoryResponse.ValidateAll() if the designated
+// constraints aren't met.
+type OrderHistoryResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m OrderHistoryResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m OrderHistoryResponseMultiError) AllErrors() []error { return m }
+
+// OrderHistoryResponseValidationError is the validation error returned by
+// OrderHistoryResponse.Validate if the designated constraints aren't met.
+type OrderHistoryResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e OrderHistoryResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e OrderHistoryResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e OrderHistoryResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e OrderHistoryResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e OrderHistoryResponseValidationError) ErrorName() string {
+	return "OrderHistoryResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e OrderHistoryResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sOrderHistoryResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = OrderHistoryResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = OrderHistoryResponseValidationError{}
+
 // Validate checks the field values on OrderResponse with the rules defined in
 // the proto definition for this message. If any rules are violated, the first
 // error encountered is returned, or nil if there are no violations.
