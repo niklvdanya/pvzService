@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"log/slog"
-	"os"
 
 	_ "github.com/lib/pq"
 )
@@ -28,15 +27,10 @@ type Config struct {
 	WriteDSN string
 	MaxOpen  int
 	MaxIdle  int
-	LogFile  string
 }
 
 func NewClient(cfg Config) (*Client, error) {
-	logFile, err := os.OpenFile(cfg.LogFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open log file: %w", err)
-	}
-	logger := slog.New(slog.NewTextHandler(logFile, nil))
+	logger := slog.Default()
 
 	readDB, err := sql.Open("postgres", cfg.ReadDSN)
 	if err != nil {

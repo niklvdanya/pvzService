@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 
 	"gitlab.ozon.dev/safariproxd/homework/internal/adapter/cli"
@@ -8,7 +9,7 @@ import (
 	"go.uber.org/multierr"
 )
 
-func (s *PVZService) importOrders(orders []domain.OrderToImport) (uint64, error) {
+func (s *PVZService) ImportOrders(ctx context.Context, orders []domain.OrderToImport) (uint64, error) {
 	var combinedErr error
 	importedCount := uint64(0)
 	for _, rawOrder := range orders {
@@ -26,7 +27,7 @@ func (s *PVZService) importOrders(orders []domain.OrderToImport) (uint64, error)
 			Price:        rawOrder.Price,
 			PackageType:  rawOrder.PackageType,
 		}
-		_, err = s.acceptOrder(req)
+		_, err = s.AcceptOrder(ctx, req)
 		if err != nil {
 			combinedErr = multierr.Append(combinedErr, fmt.Errorf("AcceptOrder: %w", err))
 			continue

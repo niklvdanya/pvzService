@@ -1,19 +1,20 @@
 package app
 
 import (
+	"context"
+
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
 )
 
 type OrderRepository interface {
-	Save(order *domain.Order) error
-	GetByID(orderID uint64) (*domain.Order, error)
-	Update(order *domain.Order) error
-	GetByReceiverID(receiverID uint64) ([]*domain.Order, error)
-	GetReturnedOrders() ([]*domain.Order, error)
-	GetAllOrders() ([]*domain.Order, error)
-	GetPackageRules(code string) ([]domain.PackageRules, error)
+	Save(ctx context.Context, order domain.Order) error
+	GetByID(ctx context.Context, orderID uint64) (domain.Order, error)
+	Update(ctx context.Context, order domain.Order) error
+	GetByReceiverID(ctx context.Context, receiverID uint64) ([]domain.Order, error)
+	GetReturnedOrders(ctx context.Context) ([]domain.Order, error)
+	GetAllOrders(ctx context.Context) ([]domain.Order, error)
+	GetPackageRules(ctx context.Context, code string) ([]domain.PackageRules, error)
 }
-
 type PVZService struct {
 	orderRepo OrderRepository
 }

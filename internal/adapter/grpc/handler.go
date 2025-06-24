@@ -66,7 +66,14 @@ func (s *OrdersServer) ListOrders(ctx context.Context, req *api.ListOrdersReques
 	if req.LastN != nil {
 		lastN = uint64(*req.LastN)
 	}
-	orders, total, err := s.service.GetReceiverOrders(ctx, req.UserId, req.InPvz, lastN, page, limit)
+	ordersReq := domain.ReceiverOrdersRequest{
+		ReceiverID: req.UserId,
+		InPVZ:      req.InPvz,
+		LastN:      lastN,
+		Page:       page,
+		Limit:      limit,
+	}
+	orders, total, err := s.service.GetReceiverOrders(ctx, ordersReq)
 	if err != nil {
 		return nil, err
 	}

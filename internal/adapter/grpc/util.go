@@ -38,7 +38,7 @@ func mapDomainStatusToProto(status domain.OrderStatus) api.OrderStatus {
 	}
 }
 
-func mapDomainOrderToProto(order *domain.Order) *api.Order {
+func mapDomainOrderToProto(order domain.Order) *api.Order {
 	pkgType := mapStringToPackageType(order.PackageType)
 	return &api.Order{
 		OrderId:    order.OrderID,

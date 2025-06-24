@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -8,7 +9,7 @@ import (
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
 )
 
-func (s *PVZService) acceptOrder(req domain.AcceptOrderRequest) (float64, error) {
+func (s *PVZService) AcceptOrder(ctx context.Context, req domain.AcceptOrderRequest) (float64, error) {
 	currentTime := time.Now()
 	if req.StorageUntil.Before(currentTime) {
 		return 0, fmt.Errorf("validation: %w",
@@ -25,7 +26,7 @@ func (s *PVZService) acceptOrder(req domain.AcceptOrderRequest) (float64, error)
 			domain.ValidationFailedError("price must be greater than 0"))
 	}
 
-	if _, err := s.orderRepo.GetByID(req.OrderID); err == nil {
+	if _, err := s.orderRepo.GetByID(ctx, req.OrderID); err == nil {
 		return 0, fmt.Errorf("repo.GetByID: %w",
 			domain.OrderAlreadyExistsError(req.OrderID))
 	}
@@ -33,7 +34,7 @@ func (s *PVZService) acceptOrder(req domain.AcceptOrderRequest) (float64, error)
 	var rules []domain.PackageRules
 	if req.PackageType != "" {
 		var err error
-		rules, err = s.orderRepo.GetPackageRules(req.PackageType)
+		rules, err = s.orderRepo.GetPackageRules(ctx, req.PackageType)
 		if err != nil {
 			return 0, fmt.Errorf("validation: %w", err)
 		}
@@ -48,7 +49,7 @@ func (s *PVZService) acceptOrder(req domain.AcceptOrderRequest) (float64, error)
 		totalPrice += r.Price
 	}
 
-	order := &domain.Order{
+	order := domain.Order{
 		OrderID:        req.OrderID,
 		ReceiverID:     req.ReceiverID,
 		StorageUntil:   req.StorageUntil,
@@ -59,7 +60,7 @@ func (s *PVZService) acceptOrder(req domain.AcceptOrderRequest) (float64, error)
 		Weight:         req.Weight,
 		Price:          totalPrice,
 	}
-	if err := s.orderRepo.Save(order); err != nil {
+	if err := s.orderRepo.Save(ctx, order); err != nil {
 		return 0, fmt.Errorf("repo.Save: %w", err)
 	}
 

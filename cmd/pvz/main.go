@@ -39,7 +39,6 @@ func main() {
 		WriteDSN: cfg.WriteDSN(),
 		MaxOpen:  cfg.DB.Pool.MaxOpen,
 		MaxIdle:  cfg.DB.Pool.MaxIdle,
-		LogFile:  cfg.Log.File,
 	}
 	client, err := db.NewClient(dbCfg)
 	if err != nil {

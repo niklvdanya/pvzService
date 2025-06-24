@@ -52,6 +52,14 @@ type AcceptOrderRequest struct {
 	PackageType  string
 }
 
+type ReceiverOrdersRequest struct {
+	ReceiverID uint64
+	InPVZ      bool
+	LastN      uint64
+	Page       uint64
+	Limit      uint64
+}
+
 func (o Order) GetStatusString() string {
 	switch o.Status {
 	case StatusInStorage:
