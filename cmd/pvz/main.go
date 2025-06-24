@@ -18,22 +18,13 @@ import (
 	"google.golang.org/grpc/reflection"
 )
 
-func initLogging(path string) {
-	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		slog.Error("Failed to open log file", "error", err)
-		os.Exit(1)
-	}
-	slog.SetDefault(slog.New(slog.NewTextHandler(file, nil)))
-}
-
 func main() {
 	cfg, err := config.Load("config/config.yaml")
 	if err != nil {
 		slog.Error("Config load failed", "error", err)
 		os.Exit(1)
 	}
-	initLogging(cfg.Log.File)
+
 	dbCfg := db.Config{
 		ReadDSN:  cfg.ReadDSN(),
 		WriteDSN: cfg.WriteDSN(),

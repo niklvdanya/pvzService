@@ -4,9 +4,6 @@ service:
   swagger_address: ":8082"
   timeout: 2s
 
-log:
-  file: pvz.log
-
 db:
   read_host: db
   write_host: db

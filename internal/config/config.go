@@ -18,10 +18,6 @@ type Config struct {
 		Timeout        time.Duration `yaml:"timeout"`
 	} `yaml:"service"`
 
-	Log struct {
-		File string `yaml:"file"`
-	} `yaml:"log"`
-
 	DB struct {
 		ReadHost  string `yaml:"read_host" env:"POSTGRES_READ_HOST"`
 		WriteHost string `yaml:"write_host" env:"POSTGRES_WRITE_HOST"`
