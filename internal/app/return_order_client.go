@@ -44,6 +44,17 @@ func (s *PVZService) ReturnOrdersFromClient(ctx context.Context, receiverID uint
 		order.LastUpdateTime = currentTime
 		if err := s.orderRepo.Update(ctx, order); err != nil {
 			combinedErr = multierr.Append(combinedErr, fmt.Errorf("repo.Update: %w", err))
+			continue
+		}
+
+		history := domain.OrderHistory{
+			OrderID:   orderID,
+			Status:    domain.StatusReturnedFromClient,
+			ChangedAt: currentTime,
+		}
+		if err := s.orderRepo.SaveHistory(ctx, history); err != nil {
+			combinedErr = multierr.Append(combinedErr, fmt.Errorf("repo.SaveHistory: %w", err))
+			continue
 		}
 	}
 	return combinedErr

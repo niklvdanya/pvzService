@@ -64,5 +64,14 @@ func (s *PVZService) AcceptOrder(ctx context.Context, req domain.AcceptOrderRequ
 		return 0, fmt.Errorf("repo.Save: %w", err)
 	}
 
+	history := domain.OrderHistory{
+		OrderID:   req.OrderID,
+		Status:    domain.StatusInStorage,
+		ChangedAt: currentTime,
+	}
+	if err := s.orderRepo.SaveHistory(ctx, history); err != nil {
+		return 0, fmt.Errorf("repo.SaveHistory: %w", err)
+	}
+
 	return totalPrice, nil
 }

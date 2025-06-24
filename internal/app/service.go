@@ -14,7 +14,10 @@ type OrderRepository interface {
 	GetReturnedOrders(ctx context.Context) ([]domain.Order, error)
 	GetAllOrders(ctx context.Context) ([]domain.Order, error)
 	GetPackageRules(ctx context.Context, code string) ([]domain.PackageRules, error)
+	SaveHistory(ctx context.Context, history domain.OrderHistory) error
+	GetHistoryByOrderID(ctx context.Context, orderID uint64) ([]domain.OrderHistory, error)
 }
+
 type PVZService struct {
 	orderRepo OrderRepository
 }
