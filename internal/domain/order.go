@@ -26,6 +26,12 @@ type Order struct {
 	Price          float64
 }
 
+type OrderHistory struct {
+	OrderID   uint64
+	Status    OrderStatus
+	ChangedAt time.Time
+}
+
 type OrderToImport struct {
 	OrderID      uint64  `json:"order_id"`
 	ReceiverID   uint64  `json:"receiver_id"`
@@ -44,6 +50,14 @@ type AcceptOrderRequest struct {
 	Weight       float64
 	Price        float64
 	PackageType  string
+}
+
+type ReceiverOrdersRequest struct {
+	ReceiverID uint64
+	InPVZ      bool
+	LastN      uint64
+	Page       uint64
+	Limit      uint64
 }
 
 func (o Order) GetStatusString() string {

@@ -4,3 +4,5 @@ bin/
 tutor_makefile.mk
 /vendor.protogen
 .idea/
+config/.env
+config/config.yaml

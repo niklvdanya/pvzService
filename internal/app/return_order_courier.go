@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -8,8 +9,8 @@ import (
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
 )
 
-func (s *PVZService) returnOrderToDelivery(orderID uint64) error {
-	order, err := s.orderRepo.GetByID(orderID)
+func (s *PVZService) ReturnOrderToDelivery(ctx context.Context, orderID uint64) error {
+	order, err := s.orderRepo.GetByID(ctx, orderID)
 	if err != nil {
 		return fmt.Errorf("repo.GetByID: %w", err)
 	}
@@ -23,15 +24,25 @@ func (s *PVZService) returnOrderToDelivery(orderID uint64) error {
 			orderID, cli.MapTimeToString(order.StorageUntil)))
 	}
 
-	if order.Status == domain.StatusInStorage {
-		order.Status = domain.StatusReturnedWithoutClient
-	} else {
-		order.Status = domain.StatusGivenToCourier
+	newStatus := domain.StatusReturnedWithoutClient
+	if order.Status == domain.StatusReturnedFromClient {
+		newStatus = domain.StatusGivenToCourier
 	}
+	order.Status = newStatus
 	order.LastUpdateTime = time.Now()
 
-	if err := s.orderRepo.Update(order); err != nil {
+	if err := s.orderRepo.Update(ctx, order); err != nil {
 		return fmt.Errorf("repo.Update: %w", err)
 	}
+
+	history := domain.OrderHistory{
+		OrderID:   orderID,
+		Status:    newStatus,
+		ChangedAt: order.LastUpdateTime,
+	}
+	if err := s.orderRepo.SaveHistory(ctx, history); err != nil {
+		return fmt.Errorf("repo.SaveHistory: %w", err)
+	}
+
 	return nil
 }

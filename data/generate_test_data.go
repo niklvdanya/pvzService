@@ -7,7 +7,6 @@ import (
 	"os"
 	"time"
 
-	"gitlab.ozon.dev/safariproxd/homework/internal/config"
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
 )
 
@@ -21,8 +20,7 @@ const (
 var packageTypes = []string{"bag", "box", "film", "bag+film", "box+film"}
 
 func main() {
-	cfg := config.Default()
-	outputFilePath := cfg.OrdersOutputFile
+	outputFilePath := "data/orders.json"
 	fmt.Printf("Generating %d orders to %s...\n", numOrders, outputFilePath)
 
 	orders := make([]domain.OrderToImport, numOrders)

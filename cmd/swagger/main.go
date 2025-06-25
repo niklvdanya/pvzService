@@ -11,7 +11,10 @@ import (
 )
 
 func main() {
-	cfg := config.Default()
+	cfg, err := config.Load("config/config.yaml")
+	if err != nil {
+		log.Fatalf("config: %v", err)
+	}
 	mux := chi.NewMux()
 	mux.HandleFunc("/swagger.json", func(w http.ResponseWriter, r *http.Request) {
 		b, err := os.ReadFile("./pkg/api/contract.swagger.json")
@@ -30,8 +33,8 @@ func main() {
 		httpSwagger.URL("/swagger.json"),
 	))
 
-	log.Printf("Listening on %s", cfg.SwaggerAddress)
-	if err := http.ListenAndServe(cfg.SwaggerAddress, mux); err != nil {
+	log.Printf("Listening on %s", cfg.Service.SwaggerAddress)
+	if err := http.ListenAndServe(cfg.Service.SwaggerAddress, mux); err != nil {
 		log.Fatalf("failed to listen and serve: %v", err)
 	}
 }

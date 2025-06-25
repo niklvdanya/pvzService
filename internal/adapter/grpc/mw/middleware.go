@@ -2,7 +2,7 @@ package mw
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/ulule/limiter/v3"
@@ -16,15 +16,13 @@ import (
 
 func LoggingInterceptor() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
-		start := time.Now()
 		md, _ := metadata.FromIncomingContext(ctx)
-		log.Printf("Request: method=%s, metadata=%v, req=%v", info.FullMethod, md, req)
+		slog.Info("Request", "method", info.FullMethod, "metadata", md)
 		resp, err := handler(ctx, req)
-		duration := time.Since(start)
 		if err != nil {
-			log.Printf("Response: method=%s, duration=%v, error=%v", info.FullMethod, duration, err)
+			slog.Error("Response", "method", info.FullMethod, "error", err)
 		} else {
-			log.Printf("Response: method=%s, duration=%v, resp=%v", info.FullMethod, duration, resp)
+			slog.Info("Response", "method", info.FullMethod)
 		}
 		return resp, err
 	}
@@ -71,5 +69,21 @@ func ValidationInterceptor() grpc.UnaryServerInterceptor {
 			}
 		}
 		return handler(ctx, req)
+	}
+}
+
+func TimeoutInterceptor(timeout time.Duration) grpc.UnaryServerInterceptor {
+	return func(parent context.Context, req any,
+		info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+
+		ctx, cancel := context.WithTimeout(parent, timeout)
+		defer cancel()
+
+		resp, err := handler(ctx, req)
+
+		if ctx.Err() == context.DeadlineExceeded && err == nil {
+			return nil, status.Error(codes.DeadlineExceeded, "service timeout")
+		}
+		return resp, err
 	}
 }

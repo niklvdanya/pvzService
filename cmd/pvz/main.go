@@ -1,7 +1,7 @@
 package main
 
 import (
-	"log"
+	"log/slog"
 	"net"
 	"os"
 	"time"
@@ -12,34 +12,37 @@ import (
 	"gitlab.ozon.dev/safariproxd/homework/internal/adapter/grpc/mw"
 	"gitlab.ozon.dev/safariproxd/homework/internal/app"
 	"gitlab.ozon.dev/safariproxd/homework/internal/config"
-	"gitlab.ozon.dev/safariproxd/homework/internal/repository/file"
+	"gitlab.ozon.dev/safariproxd/homework/internal/repository/postgres"
+	"gitlab.ozon.dev/safariproxd/homework/pkg/db"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
 
-// TODO исправить нейминг пакетов и директорий
-func initLogging(path string) {
-	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		log.Fatalf("Failed to open log file: %v", err)
-	}
-	log.SetOutput(file)
-}
-
 func main() {
-	cfg := config.Default()
-	initLogging(cfg.LogFile)
-	orderRepo, err := file.NewFileOrderRepository(cfg.OrderDataFile)
+	cfg, err := config.Load("config/config.yaml")
 	if err != nil {
-		log.Fatalf("Failed to initialize file order repository: %v", err)
+		slog.Error("Config load failed", "error", err)
+		os.Exit(1)
 	}
-	pvzService, err := app.NewPVZService(orderRepo, cfg.PackageConfigFile, cfg.ServiceTimeout)
-	if err != nil {
-		log.Fatalf("Failed to init PVZ service: %v", err)
+
+	dbCfg := db.Config{
+		ReadDSN:  cfg.ReadDSN(),
+		WriteDSN: cfg.WriteDSN(),
+		MaxOpen:  cfg.DB.Pool.MaxOpen,
+		MaxIdle:  cfg.DB.Pool.MaxIdle,
 	}
-	lis, err := net.Listen("tcp", cfg.GRPCAddress)
+	client, err := db.NewClient(dbCfg)
 	if err != nil {
-		log.Fatalf("Failed to listen: %v", err)
+		slog.Error("DB client creation failed", "error", err)
+		os.Exit(1)
+	}
+	defer client.Close()
+	orderRepo := postgres.NewOrderRepository(client)
+	pvzService := app.NewPVZService(orderRepo)
+	lis, err := net.Listen("tcp", cfg.Service.GRPCAddress)
+	if err != nil {
+		slog.Error("Failed to listen", "error", err)
+		os.Exit(1)
 	}
 	limiterInstance := limiter.New(memory.NewStore(), limiter.Rate{
 		Period: time.Second,
@@ -49,6 +52,7 @@ func main() {
 
 	grpcServer := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
+			mw.TimeoutInterceptor(cfg.Service.Timeout),
 			mw.LoggingInterceptor(),
 			mw.ValidationInterceptor(),
 			mw.ErrorMappingInterceptor(),
@@ -59,8 +63,9 @@ func main() {
 	reflection.Register(grpcServer)
 	ordersServer.Register(grpcServer)
 
-	log.Printf("gRPC server listening on %s", cfg.GRPCAddress)
+	slog.Info("gRPC server listening on", "address", cfg.Service.GRPCAddress)
 	if err := grpcServer.Serve(lis); err != nil {
-		log.Fatalf("Failed to serve: %v", err)
+		slog.Error("Failed to serve", "error", err)
+		os.Exit(1)
 	}
 }

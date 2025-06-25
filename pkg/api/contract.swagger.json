@@ -296,6 +296,39 @@
           "OrdersService"
         ]
       }
+    },
+    "/v1/orders/{orderId}/history": {
+      "get": {
+        "summary": "Получить историю статусов по заказу",
+        "description": "Возвращает историю изменений статуса для указанного заказа, отсортированную по убыванию времени изменения. Если заказ не найден, возвращается ошибка.",
+        "operationId": "OrdersService_GetOrderHistory",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/ordersOrderHistoryResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "uint64"
+          }
+        ],
+        "tags": [
+          "OrdersService"
+        ]
+      }
     }
   },
   "definitions": {
@@ -412,6 +445,18 @@
       }
     },
     "ordersOrderHistoryList": {
+      "type": "object",
+      "properties": {
+        "history": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/ordersOrderHistory"
+          }
+        }
+      }
+    },
+    "ordersOrderHistoryResponse": {
       "type": "object",
       "properties": {
         "history": {

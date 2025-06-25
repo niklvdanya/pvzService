@@ -13,18 +13,21 @@ import (
 )
 
 func main() {
-	cfg := config.Default()
+	cfg, err := config.Load("config/config.yaml")
+	if err != nil {
+		log.Fatalf("config: %v", err)
+	}
 	ctx := context.Background()
 	mux := runtime.NewServeMux()
-	err := api.RegisterOrdersServiceHandlerFromEndpoint(ctx, mux, cfg.GRPCAddress, []grpc.DialOption{
+	err = api.RegisterOrdersServiceHandlerFromEndpoint(ctx, mux, cfg.Service.GRPCAddress, []grpc.DialOption{
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	})
 	if err != nil {
 		log.Fatalf("RegisterOrdersServiceHandlerFromEndpoint err: %v", err)
 	}
 
-	log.Printf("http server running on %v", cfg.HTTPAddress)
-	if err := http.ListenAndServe(cfg.HTTPAddress, mux); err != nil {
+	log.Printf("http server running on %v", cfg.Service.HTTPAddress)
+	if err := http.ListenAndServe(cfg.Service.HTTPAddress, mux); err != nil {
 		log.Fatalf("http server running err: %v", err)
 	}
 }

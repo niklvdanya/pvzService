@@ -1,38 +1,31 @@
 package app
 
 import (
-	"fmt"
-	"time"
+	"context"
 
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
 )
 
 type OrderRepository interface {
-	Save(order *domain.Order) error
-	GetByID(orderID uint64) (*domain.Order, error)
-	Update(order *domain.Order) error
-	GetByReceiverID(receiverID uint64) ([]*domain.Order, error)
-	GetReturnedOrders() ([]*domain.Order, error)
-	GetAllOrders() ([]*domain.Order, error)
+	Save(ctx context.Context, order domain.Order) error
+	GetByID(ctx context.Context, orderID uint64) (domain.Order, error)
+	Update(ctx context.Context, order domain.Order) error
+	GetByReceiverID(ctx context.Context, receiverID uint64) ([]domain.Order, error)
+	GetReturnedOrders(ctx context.Context) ([]domain.Order, error)
+	GetAllOrders(ctx context.Context) ([]domain.Order, error)
+	GetPackageRules(ctx context.Context, code string) ([]domain.PackageRules, error)
+	SaveHistory(ctx context.Context, history domain.OrderHistory) error
+	GetHistoryByOrderID(ctx context.Context, orderID uint64) ([]domain.OrderHistory, error)
 }
 
 type PVZService struct {
-	orderRepo      OrderRepository
-	packageConfig  domain.PackageConfig
-	serviceTimeout time.Duration
+	orderRepo OrderRepository
 }
 
-func NewPVZService(orderRepo OrderRepository, configPath string, cfg time.Duration) (*PVZService, error) {
-	packageConfig, err := domain.LoadPackageConfig(configPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load package config: %w", err)
-	}
-
+func NewPVZService(orderRepo OrderRepository) *PVZService {
 	return &PVZService{
-		orderRepo:      orderRepo,
-		packageConfig:  packageConfig,
-		serviceTimeout: cfg,
-	}, nil
+		orderRepo: orderRepo,
+	}
 }
 
 func Paginate[T any](items []T, currentPage, itemsPerPage uint64) []T {

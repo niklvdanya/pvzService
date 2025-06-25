@@ -101,3 +101,19 @@ gateway:
 	go run cmd/gateway/main.go
 swagger:
 	go run cmd/swagger/main.go
+
+GOOSE_BIN   ?= $(LOCAL_BIN)/goose      
+MIGRATIONS  ?= migrations
+DB_DSN      ?= postgres://pvz:pvz@localhost:5433/pvz?sslmode=disable
+
+migrate-up: 
+	$(GOOSE_BIN) -dir $(MIGRATIONS) postgres "$(DB_DSN)" up
+
+migrate-down:
+	$(GOOSE_BIN) -dir $(MIGRATIONS) postgres "$(DB_DSN)" down
+
+migrate-status:
+	$(GOOSE_BIN) -dir $(MIGRATIONS) postgres "$(DB_DSN)" status
+
+compose-up:
+	@docker-compose --env-file ./config/.env up -d
