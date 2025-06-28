@@ -38,7 +38,7 @@ func main() {
 	}
 	defer client.Close()
 	orderRepo := postgres.NewOrderRepository(client)
-	pvzService := app.NewPVZService(orderRepo, time.Now) // Передаем time.Now как nowFn
+	pvzService := app.NewPVZService(orderRepo, time.Now)
 	lis, err := net.Listen("tcp", cfg.Service.GRPCAddress)
 	if err != nil {
 		slog.Error("Failed to listen", "error", err)
