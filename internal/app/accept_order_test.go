@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gojuno/minimock/v3"
 	"github.com/stretchr/testify/assert"
 	"gitlab.ozon.dev/safariproxd/homework/internal/app/mock"
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
@@ -14,7 +13,6 @@ import (
 
 func TestPVZService_AcceptOrder(t *testing.T) {
 	t.Parallel()
-	fixedTime := time.Date(2025, time.June, 28, 3, 26, 0, 0, time.UTC)
 	type testFixture struct {
 		ctx          context.Context
 		defaultReq   domain.AcceptOrderRequest
@@ -23,16 +21,16 @@ func TestPVZService_AcceptOrder(t *testing.T) {
 	}
 
 	fixture := testFixture{
-		ctx: context.Background(),
+		ctx: contextBack,
 		defaultReq: domain.AcceptOrderRequest{
 			OrderID:      1,
-			ReceiverID:   100,
-			StorageUntil: fixedTime.Add(24 * time.Hour),
+			ReceiverID:   someRecieverID,
+			StorageUntil: someConstTime.Add(24 * time.Hour),
 			Weight:       5.0,
 			Price:        100.0,
 			PackageType:  "bag",
 		},
-		fixedTime: fixedTime,
+		fixedTime: someConstTime,
 		packageRules: []domain.PackageRules{
 			{MaxWeight: 10, Price: 5},
 		},
@@ -85,6 +83,7 @@ func TestPVZService_AcceptOrder(t *testing.T) {
 	expectSaveHistory := func(repo *mock.OrderRepositoryMock, ctx context.Context, history domain.OrderHistory, err error) {
 		repo.SaveHistoryMock.Expect(ctx, history).Return(err)
 	}
+
 	modifyRequest := func(base domain.AcceptOrderRequest, modifiers ...func(*domain.AcceptOrderRequest)) domain.AcceptOrderRequest {
 		req := base
 		for _, modifier := range modifiers {
@@ -200,13 +199,8 @@ func TestPVZService_AcceptOrder(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			ctrl := minimock.NewController(t)
-			repoMock := mock.NewOrderRepositoryMock(ctrl)
-			service := &PVZService{
-				orderRepo: repoMock,
-				nowFn:     func() time.Time { return fixture.fixedTime },
-			}
-			tt.prepare(t, repoMock, tt.req)
+			repo, service := NewEnv(t)
+			tt.prepare(t, repo, tt.req)
 			got, err := service.AcceptOrder(fixture.ctx, tt.req)
 			assert.Equal(t, tt.want, got)
 			tt.wantErr(t, err)

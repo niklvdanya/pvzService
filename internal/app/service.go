@@ -26,7 +26,7 @@ type PVZService struct {
 
 func NewPVZService(orderRepo OrderRepository, nowFn func() time.Time) *PVZService {
 	if nowFn == nil {
-		nowFn = time.Now // Значение по умолчанию — time.Now
+		nowFn = time.Now
 	}
 	return &PVZService{
 		orderRepo: orderRepo,
