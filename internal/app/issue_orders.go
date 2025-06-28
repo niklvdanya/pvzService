@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"gitlab.ozon.dev/safariproxd/homework/internal/adapter/cli"
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
@@ -12,7 +11,7 @@ import (
 
 func (s *PVZService) IssueOrdersToClient(ctx context.Context, receiverID uint64, orderIDs []uint64) error {
 	var combinedErr error
-	currentTime := time.Now()
+	currentTime := s.nowFn()
 
 	for _, orderID := range orderIDs {
 		order, err := s.orderRepo.GetByID(ctx, orderID)

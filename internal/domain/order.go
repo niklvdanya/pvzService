@@ -60,6 +60,11 @@ type ReceiverOrdersRequest struct {
 	Limit      uint64
 }
 
+type PackageRules struct {
+	MaxWeight float64 `json:"max_weight"`
+	Price     float64 `json:"price"`
+}
+
 func (o Order) GetStatusString() string {
 	switch o.Status {
 	case StatusInStorage:
@@ -75,8 +80,4 @@ func (o Order) GetStatusString() string {
 	default:
 		return "Unknown Status"
 	}
-}
-
-func (o Order) IsBelongsToReciever(receiverID uint64) bool {
-	return o.Status == StatusInStorage || o.Status == StatusGivenToClient
 }

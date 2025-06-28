@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"gitlab.ozon.dev/safariproxd/homework/internal/adapter/cli"
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
@@ -19,7 +18,7 @@ func (s *PVZService) ReturnOrderToDelivery(ctx context.Context, orderID uint64) 
 		return fmt.Errorf("validation: %w", domain.ValidationFailedError(
 			fmt.Sprintf("order is not in storage (current status: %s)", order.GetStatusString())))
 	}
-	if time.Now().Before(order.StorageUntil) {
+	if s.nowFn().Before(order.StorageUntil) { // Используем nowFn вместо time.Now
 		return fmt.Errorf("validation: %w", domain.StorageNotExpiredError(
 			orderID, cli.MapTimeToString(order.StorageUntil)))
 	}
@@ -29,7 +28,7 @@ func (s *PVZService) ReturnOrderToDelivery(ctx context.Context, orderID uint64) 
 		newStatus = domain.StatusGivenToCourier
 	}
 	order.Status = newStatus
-	order.LastUpdateTime = time.Now()
+	order.LastUpdateTime = s.nowFn() // Используем nowFn вместо time.Now
 
 	if err := s.orderRepo.Update(ctx, order); err != nil {
 		return fmt.Errorf("repo.Update: %w", err)

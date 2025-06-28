@@ -9,10 +9,6 @@ import (
 )
 
 func (s *PVZService) GetReceiverOrders(ctx context.Context, req domain.ReceiverOrdersRequest) ([]domain.Order, uint64, error) {
-	if req.ReceiverID == 0 {
-		return nil, 0, fmt.Errorf("validation: %w", domain.ValidationFailedError("receiver ID cannot be empty"))
-	}
-
 	receiverOrders, err := s.orderRepo.GetByReceiverID(ctx, req.ReceiverID)
 	if err != nil {
 		return nil, 0, fmt.Errorf("repo.GetByReceiverID: %w", err)
