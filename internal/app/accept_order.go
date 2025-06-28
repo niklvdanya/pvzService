@@ -7,6 +7,7 @@ import (
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
 )
 
+// удалил часть валидации из бизнес логики, ибо в protoc validate она уже встроена
 func (s *PVZService) AcceptOrder(ctx context.Context, req domain.AcceptOrderRequest) (float64, error) {
 	currentTime := s.nowFn()
 

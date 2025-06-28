@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// в domain особо нечего тестировать, но по условию ДЗ надо 40% покрытия слоев usecase и entity
 func Test_Order_GetStatusString(t *testing.T) {
 	tbl := []struct {
 		st   OrderStatus
