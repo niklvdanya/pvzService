@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gojuno/minimock/v3"
+	"github.com/stretchr/testify/assert"
 	"gitlab.ozon.dev/safariproxd/homework/internal/adapter/cli"
 	"gitlab.ozon.dev/safariproxd/homework/internal/app/mock"
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
@@ -95,5 +96,11 @@ func DTO(id uint64, pkg string, off time.Duration) domain.OrderToImport {
 		PackageType:  pkg,
 		Weight:       5,
 		Price:        100,
+	}
+}
+
+func errIs(target error) assert.ErrorAssertionFunc {
+	return func(t assert.TestingT, err error, _ ...interface{}) bool {
+		return assert.ErrorIs(t, err, target)
 	}
 }

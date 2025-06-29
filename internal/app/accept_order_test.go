@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -9,6 +10,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"gitlab.ozon.dev/safariproxd/homework/internal/app/mock"
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
+)
+
+var (
+	errSaveOrder   = errors.New("save error")
+	errSaveHistory = errors.New("save history error")
 )
 
 func TestPVZService_AcceptOrder(t *testing.T) {
@@ -54,25 +60,25 @@ func TestPVZService_AcceptOrder(t *testing.T) {
 		repo.GetPackageRulesMock.Expect(ctx, packageType).Return(rules, err)
 	}
 
-	buildExpectedOrder := func(req domain.AcceptOrderRequest, totalPrice float64, time time.Time) domain.Order {
+	buildExpectedOrder := func(req domain.AcceptOrderRequest, totalPrice float64, tm time.Time) domain.Order {
 		return domain.Order{
 			OrderID:        req.OrderID,
 			ReceiverID:     req.ReceiverID,
 			StorageUntil:   req.StorageUntil,
 			Status:         domain.StatusInStorage,
-			AcceptTime:     time,
-			LastUpdateTime: time,
+			AcceptTime:     tm,
+			LastUpdateTime: tm,
 			PackageType:    req.PackageType,
 			Weight:         req.Weight,
 			Price:          totalPrice,
 		}
 	}
 
-	buildExpectedHistory := func(orderID uint64, time time.Time) domain.OrderHistory {
+	buildExpectedHistory := func(orderID uint64, tm time.Time) domain.OrderHistory {
 		return domain.OrderHistory{
 			OrderID:   orderID,
 			Status:    domain.StatusInStorage,
-			ChangedAt: time,
+			ChangedAt: tm,
 		}
 	}
 
@@ -86,26 +92,26 @@ func TestPVZService_AcceptOrder(t *testing.T) {
 
 	modifyRequest := func(base domain.AcceptOrderRequest, modifiers ...func(*domain.AcceptOrderRequest)) domain.AcceptOrderRequest {
 		req := base
-		for _, modifier := range modifiers {
-			modifier(&req)
+		for _, m := range modifiers {
+			m(&req)
 		}
 		return req
 	}
 
-	withWeight := func(weight float64) func(*domain.AcceptOrderRequest) {
-		return func(req *domain.AcceptOrderRequest) { req.Weight = weight }
+	withWeight := func(w float64) func(*domain.AcceptOrderRequest) {
+		return func(r *domain.AcceptOrderRequest) { r.Weight = w }
 	}
 
-	withPackageType := func(packageType string) func(*domain.AcceptOrderRequest) {
-		return func(req *domain.AcceptOrderRequest) { req.PackageType = packageType }
+	withPackageType := func(pt string) func(*domain.AcceptOrderRequest) {
+		return func(r *domain.AcceptOrderRequest) { r.PackageType = pt }
 	}
 
 	tests := []struct {
-		name    string
-		req     domain.AcceptOrderRequest
-		prepare func(t *testing.T, repo *mock.OrderRepositoryMock, req domain.AcceptOrderRequest)
-		want    float64
-		wantErr assert.ErrorAssertionFunc
+		name      string
+		req       domain.AcceptOrderRequest
+		prepare   func(*testing.T, *mock.OrderRepositoryMock, domain.AcceptOrderRequest)
+		wantTotal float64
+		wantErr   assert.ErrorAssertionFunc
 	}{
 		{
 			name: "Success_AcceptOrder_WithPackageRules",
@@ -119,8 +125,8 @@ func TestPVZService_AcceptOrder(t *testing.T) {
 				expectSaveOrder(repo, fixture.ctx, expectedOrder, nil)
 				expectSaveHistory(repo, fixture.ctx, expectedHistory, nil)
 			},
-			want:    105.0,
-			wantErr: assert.NoError,
+			wantTotal: 105.0,
+			wantErr:   assert.NoError,
 		},
 		{
 			name: "Fail_OrderAlreadyExists",
@@ -128,8 +134,8 @@ func TestPVZService_AcceptOrder(t *testing.T) {
 			prepare: func(t *testing.T, repo *mock.OrderRepositoryMock, req domain.AcceptOrderRequest) {
 				expectOrderExists(repo, fixture.ctx, req.OrderID)
 			},
-			want:    0,
-			wantErr: assert.Error,
+			wantTotal: 0,
+			wantErr:   errIs(domain.OrderAlreadyExistsError(fixture.defaultReq.OrderID)),
 		},
 		{
 			name: "Fail_InvalidPackageType",
@@ -138,8 +144,8 @@ func TestPVZService_AcceptOrder(t *testing.T) {
 				expectOrderNotFound(repo, fixture.ctx, req.OrderID)
 				expectPackageRules(repo, fixture.ctx, req.PackageType, nil, domain.InvalidPackageError(req.PackageType))
 			},
-			want:    0,
-			wantErr: assert.Error,
+			wantTotal: 0,
+			wantErr:   errIs(domain.InvalidPackageError(fixture.defaultReq.PackageType)),
 		},
 		{
 			name: "Fail_WeightTooHeavy",
@@ -148,8 +154,8 @@ func TestPVZService_AcceptOrder(t *testing.T) {
 				expectOrderNotFound(repo, fixture.ctx, req.OrderID)
 				expectPackageRules(repo, fixture.ctx, req.PackageType, fixture.packageRules, nil)
 			},
-			want:    0,
-			wantErr: assert.Error,
+			wantTotal: 0,
+			wantErr:   errIs(domain.WeightTooHeavyError(fixture.defaultReq.PackageType, 15.0, fixture.packageRules[0].MaxWeight)),
 		},
 		{
 			name: "Success_AcceptOrder_WithoutPackageType",
@@ -162,8 +168,8 @@ func TestPVZService_AcceptOrder(t *testing.T) {
 				expectSaveOrder(repo, fixture.ctx, expectedOrder, nil)
 				expectSaveHistory(repo, fixture.ctx, expectedHistory, nil)
 			},
-			want:    100.0,
-			wantErr: assert.NoError,
+			wantTotal: 100.0,
+			wantErr:   assert.NoError,
 		},
 		{
 			name: "Fail_SaveOrder",
@@ -173,10 +179,10 @@ func TestPVZService_AcceptOrder(t *testing.T) {
 
 				expectOrderNotFound(repo, fixture.ctx, req.OrderID)
 				expectPackageRules(repo, fixture.ctx, req.PackageType, fixture.packageRules, nil)
-				expectSaveOrder(repo, fixture.ctx, expectedOrder, fmt.Errorf("save error"))
+				expectSaveOrder(repo, fixture.ctx, expectedOrder, errSaveOrder)
 			},
-			want:    0,
-			wantErr: assert.Error,
+			wantTotal: 0,
+			wantErr:   errIs(errSaveOrder),
 		},
 		{
 			name: "Fail_SaveHistory",
@@ -188,20 +194,21 @@ func TestPVZService_AcceptOrder(t *testing.T) {
 				expectOrderNotFound(repo, fixture.ctx, req.OrderID)
 				expectPackageRules(repo, fixture.ctx, req.PackageType, fixture.packageRules, nil)
 				expectSaveOrder(repo, fixture.ctx, expectedOrder, nil)
-				expectSaveHistory(repo, fixture.ctx, expectedHistory, fmt.Errorf("save history error"))
+				expectSaveHistory(repo, fixture.ctx, expectedHistory, errSaveHistory)
 			},
-			want:    0,
-			wantErr: assert.Error,
+			wantTotal: 0,
+			wantErr:   errIs(errSaveHistory),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			repo, service := NewEnv(t)
+			repo, svc := NewEnv(t)
 			tt.prepare(t, repo, tt.req)
-			got, err := service.AcceptOrder(fixture.ctx, tt.req)
-			assert.Equal(t, tt.want, got)
+
+			got, err := svc.AcceptOrder(fixture.ctx, tt.req)
+			assert.Equal(t, tt.wantTotal, got)
 			tt.wantErr(t, err)
 		})
 	}

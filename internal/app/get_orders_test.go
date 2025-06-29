@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -77,7 +78,7 @@ func TestPVZService_GetReceiverOrders(t *testing.T) {
 			},
 			wantIDs:   nil,
 			wantTotal: 0,
-			assertE:   assert.Error,
+			assertE:   errIs(assert.AnError),
 		},
 	}
 
@@ -162,7 +163,7 @@ func TestPVZService_GetReturnedOrders(t *testing.T) {
 			},
 			wantIDs:   nil,
 			wantTotal: 0,
-			assertE:   assert.Error,
+			assertE:   errIs(assert.AnError),
 		},
 	}
 
@@ -211,7 +212,7 @@ func TestPVZService_GetOrderHistory(t *testing.T) {
 				r.GetAllOrdersMock.Expect(contextBack).Return(nil, assert.AnError)
 			},
 			wantIDs: nil,
-			assertE: assert.Error,
+			assertE: errIs(assert.AnError),
 		},
 	}
 
@@ -233,12 +234,12 @@ func TestPVZService_GetOrderHistoryByID(t *testing.T) {
 	t.Parallel()
 
 	id := uint64(42)
-	h := []domain.OrderHistory{
+	history := []domain.OrderHistory{
 		History(id, domain.StatusReturnedFromClient, -3*time.Hour),
 		History(id, domain.StatusReturnedFromClient, -1*time.Hour),
 		History(id, domain.StatusReturnedFromClient, -2*time.Hour),
 	}
-	wantTimes := TimesOf([]domain.OrderHistory{h[1], h[2], h[0]})
+	wantTimes := TimesOf([]domain.OrderHistory{history[1], history[2], history[0]})
 
 	tests := []struct {
 		name    string
@@ -249,7 +250,7 @@ func TestPVZService_GetOrderHistoryByID(t *testing.T) {
 		{
 			name: "Success",
 			setup: func(r *mock.OrderRepositoryMock) {
-				r.GetHistoryByOrderIDMock.Expect(contextBack, id).Return(h, nil)
+				r.GetHistoryByOrderIDMock.Expect(contextBack, id).Return(history, nil)
 			},
 			want:    wantTimes,
 			assertE: assert.NoError,
@@ -260,7 +261,7 @@ func TestPVZService_GetOrderHistoryByID(t *testing.T) {
 				r.GetHistoryByOrderIDMock.Expect(contextBack, id).Return([]domain.OrderHistory{}, nil)
 			},
 			want:    nil,
-			assertE: assert.Error,
+			assertE: errIs(domain.EntityNotFoundError("Order", fmt.Sprintf("%d", id))),
 		},
 		{
 			name: "RepoError",
@@ -268,7 +269,7 @@ func TestPVZService_GetOrderHistoryByID(t *testing.T) {
 				r.GetHistoryByOrderIDMock.Expect(contextBack, id).Return(nil, assert.AnError)
 			},
 			want:    nil,
-			assertE: assert.Error,
+			assertE: errIs(assert.AnError),
 		},
 	}
 
