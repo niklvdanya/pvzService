@@ -21,10 +21,10 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	server "gitlab.ozon.dev/safariproxd/homework/internal/adapter/grpc"
-	mw "gitlab.ozon.dev/safariproxd/homework/internal/adapter/grpc/mw"
-	apppkg "gitlab.ozon.dev/safariproxd/homework/internal/app"
-	repopg "gitlab.ozon.dev/safariproxd/homework/internal/repository/postgres"
-	api "gitlab.ozon.dev/safariproxd/homework/pkg/api"
+	"gitlab.ozon.dev/safariproxd/homework/internal/adapter/grpc/mw"
+	"gitlab.ozon.dev/safariproxd/homework/internal/app"
+	"gitlab.ozon.dev/safariproxd/homework/internal/repository/postgres"
+	"gitlab.ozon.dev/safariproxd/homework/pkg/api"
 	dbpkg "gitlab.ozon.dev/safariproxd/homework/pkg/db"
 
 	"github.com/ulule/limiter/v3"
@@ -102,8 +102,8 @@ func setupEnv(t *testing.T) *testEnv {
 	dbClient, err := dbpkg.NewClient(dbCfg)
 	require.NoError(t, err)
 
-	repo := repopg.NewOrderRepository(dbClient)
-	svc := apppkg.NewPVZService(repo, time.Now)
+	repo := postgres.NewOrderRepository(dbClient)
+	svc := app.NewPVZService(repo, time.Now)
 
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
@@ -122,7 +122,7 @@ func setupEnv(t *testing.T) *testEnv {
 
 	go func() { _ = grpcServer.Serve(lis) }()
 
-	conn, err := grpc.Dial(lis.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(lis.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 
 	env := &testEnv{

@@ -17,10 +17,11 @@ import (
 	_ "github.com/lib/pq"
 
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
-	repopg "gitlab.ozon.dev/safariproxd/homework/internal/repository/postgres"
+	"gitlab.ozon.dev/safariproxd/homework/internal/repository/postgres"
 	dbpkg "gitlab.ozon.dev/safariproxd/homework/pkg/db"
 )
 
+// надо вынести в конфиг наверное
 const (
 	postgresImage = "postgres:16-alpine"
 	postgresUser  = "user"
@@ -35,7 +36,7 @@ type OrderRepositorySuite struct {
 	dsn                string
 	sqlDB              *sql.DB
 	dbClient           *dbpkg.Client
-	orderRepo          *repopg.OrderRepository
+	orderRepo          *postgres.OrderRepository
 	migrationsLocation string
 }
 
@@ -86,7 +87,7 @@ func (s *OrderRepositorySuite) SetupSuite() {
 	s.dbClient, err = dbpkg.NewClient(cfg)
 	require.NoError(s.T(), err)
 
-	s.orderRepo = repopg.NewOrderRepository(s.dbClient)
+	s.orderRepo = postgres.NewOrderRepository(s.dbClient)
 }
 
 func (s *OrderRepositorySuite) TearDownSuite() {

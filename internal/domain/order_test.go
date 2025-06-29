@@ -8,7 +8,9 @@ import (
 
 // в domain особо нечего тестировать, но по условию ДЗ надо 40% покрытия слоев usecase и entity
 func Test_Order_GetStatusString(t *testing.T) {
-	tbl := []struct {
+	t.Parallel()
+
+	tests := []struct {
 		st   OrderStatus
 		want string
 	}{
@@ -19,14 +21,17 @@ func Test_Order_GetStatusString(t *testing.T) {
 		{StatusReturnedWithoutClient, "Given to courier without client"},
 		{99, "Unknown Status"},
 	}
-	for _, row := range tbl {
+
+	for _, row := range tests {
 		got := Order{Status: row.st}.GetStatusString()
 		assert.Equal(t, row.want, got)
 	}
 }
 
 func Test_Domain_ErrorHelpers(t *testing.T) {
-	cases := []struct {
+	t.Parallel()
+
+	tests := []struct {
 		name   string
 		err    error
 		code   ErrorCode
@@ -37,9 +42,10 @@ func Test_Domain_ErrorHelpers(t *testing.T) {
 		{"StorageExpired", StorageExpiredError(9, "2025-06-30"), ErrorCodeStorageExpired, "2025-06-30"},
 		{"WeightTooHeavy", WeightTooHeavyError("box", 12.5, 10), ErrorCodeWeightTooHeavy, "12.50"},
 	}
-	for _, c := range cases {
-		e := c.err.(Error)
-		assert.Equal(t, c.code, e.Code, c.name)
-		assert.Contains(t, e.Message, c.substr, c.name)
+
+	for _, tt := range tests {
+		e := tt.err.(Error)
+		assert.Equal(t, tt.code, e.Code, tt.name)
+		assert.Contains(t, e.Message, tt.substr, tt.name)
 	}
 }
