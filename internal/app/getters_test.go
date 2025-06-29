@@ -11,9 +11,11 @@ import (
 )
 
 func Test_GetReceiverOrders(t *testing.T) {
+	t.Parallel()
+
 	orders := []domain.Order{Stored(1, domain.StatusInStorage), Stored(2, domain.StatusGivenToClient), Stored(3, domain.StatusInStorage)}
 
-	cases := []struct {
+	tests := []struct {
 		name    string
 		req     domain.ReceiverOrdersRequest
 		wantIDs []uint64
@@ -25,26 +27,31 @@ func Test_GetReceiverOrders(t *testing.T) {
 		{"RepoErr", domain.ReceiverOrdersRequest{ReceiverID: someRecieverID}, nil, true, true},
 	}
 
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			repo, svc := NewEnv(t)
-			if c.repoErr {
+			if tt.repoErr {
 				repo.GetByReceiverIDMock.Expect(contextBack, someRecieverID).Return(nil, fmt.Errorf("db"))
 			} else {
 				repo.GetByReceiverIDMock.Expect(contextBack, someRecieverID).Return(orders, nil)
 			}
-			got, _, err := svc.GetReceiverOrders(contextBack, c.req)
-			if c.wantErr {
+			got, _, err := svc.GetReceiverOrders(contextBack, tt.req)
+			if tt.wantErr {
 				assert.Error(t, err)
 				return
 			}
 			assert.NoError(t, err)
-			assert.Equal(t, c.wantIDs, IdsOf(got))
+			assert.Equal(t, tt.wantIDs, IdsOf(got))
 		})
 	}
 }
 
 func Test_GetReturnedOrders(t *testing.T) {
+	t.Parallel()
+
 	returns := []domain.Order{Stored(5, domain.StatusReturnedFromClient), Stored(6, domain.StatusReturnedFromClient)}
 	repo, svc := NewEnv(t)
 	repo.GetReturnedOrdersMock.Expect(contextBack).Return(returns, nil)
@@ -55,6 +62,8 @@ func Test_GetReturnedOrders(t *testing.T) {
 }
 
 func Test_GetOrderHistory_Sorted(t *testing.T) {
+	t.Parallel()
+
 	unsorted := []domain.Order{Stored(10, 0), Stored(12, 0), Stored(11, 0)}
 	repo, svc := NewEnv(t)
 	repo.GetAllOrdersMock.Expect(contextBack).Return(unsorted, nil)
@@ -64,6 +73,8 @@ func Test_GetOrderHistory_Sorted(t *testing.T) {
 }
 
 func Test_GetOrderHistoryByID(t *testing.T) {
+	t.Parallel()
+
 	h := []domain.OrderHistory{{OrderID: 1, Status: 2, ChangedAt: someConstTime.Add(time.Hour)}, {OrderID: 1, Status: 1, ChangedAt: someConstTime}}
 	repo, svc := NewEnv(t)
 	repo.GetHistoryByOrderIDMock.Set(func(_ context.Context, id uint64) ([]domain.OrderHistory, error) {
@@ -80,6 +91,8 @@ func Test_GetOrderHistoryByID(t *testing.T) {
 }
 
 func Test_GetReceiverOrdersScroll(t *testing.T) {
+	t.Parallel()
+
 	orders := []domain.Order{Stored(1, 0), Stored(2, 0), Stored(3, 0)}
 	repo, svc := NewEnv(t)
 	repo.GetByReceiverIDMock.Set(func(_ context.Context, _ uint64) ([]domain.Order, error) { return orders, nil })
@@ -91,6 +104,8 @@ func Test_GetReceiverOrdersScroll(t *testing.T) {
 }
 
 func Test_ReturnOrderToDelivery(t *testing.T) {
+	t.Parallel()
+
 	expired := someConstTime.Add(-time.Hour)
 
 	makeOrd := func(id uint64, st domain.OrderStatus, until time.Time) domain.Order {
@@ -99,7 +114,7 @@ func Test_ReturnOrderToDelivery(t *testing.T) {
 		return o
 	}
 
-	cases := []struct {
+	tests := []struct {
 		name   string
 		order  domain.Order
 		wantOK bool
@@ -109,22 +124,25 @@ func Test_ReturnOrderToDelivery(t *testing.T) {
 		{"WrongStatus", makeOrd(3, domain.StatusGivenToClient, expired), false},
 	}
 
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			repo, svc := NewEnv(t)
-			repo.GetByIDMock.Expect(contextBack, c.order.OrderID).Return(c.order, nil)
-			if c.wantOK {
-				upd := c.order
+			repo.GetByIDMock.Expect(contextBack, tt.order.OrderID).Return(tt.order, nil)
+			if tt.wantOK {
+				upd := tt.order
 				upd.Status = domain.StatusReturnedWithoutClient
-				if c.order.Status == domain.StatusReturnedFromClient {
+				if tt.order.Status == domain.StatusReturnedFromClient {
 					upd.Status = domain.StatusGivenToCourier
 				}
 				upd.LastUpdateTime = someConstTime
 				repo.UpdateMock.Expect(contextBack, upd).Return(nil)
 				repo.SaveHistoryMock.Expect(contextBack, domain.OrderHistory{OrderID: upd.OrderID, Status: upd.Status, ChangedAt: someConstTime}).Return(nil)
 			}
-			err := svc.ReturnOrderToDelivery(contextBack, c.order.OrderID)
-			if c.wantOK {
+			err := svc.ReturnOrderToDelivery(contextBack, tt.order.OrderID)
+			if tt.wantOK {
 				assert.NoError(t, err)
 			} else {
 				assert.Error(t, err)
