@@ -76,6 +76,7 @@ func (s *PVZService) GetOrderHistoryByID(ctx context.Context, orderID uint64) ([
 	return history, nil
 }
 
+// не используется в grpc (была как доп.задание в д/з 1)
 func (s *PVZService) GetReceiverOrdersScroll(ctx context.Context, receiverID uint64, lastID, limit uint64) ([]domain.Order, uint64, error) {
 	receiverOrders, err := s.orderRepo.GetByReceiverID(ctx, receiverID)
 	if err != nil {

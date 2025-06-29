@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gojuno/minimock/v3"
+	"gitlab.ozon.dev/safariproxd/homework/internal/adapter/cli"
 	"gitlab.ozon.dev/safariproxd/homework/internal/app/mock"
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
 )
@@ -38,4 +39,61 @@ func NewEnv(t *testing.T) (*mock.OrderRepositoryMock, *PVZService) {
 	repo := mock.NewOrderRepositoryMock(ctrl)
 	svc := &PVZService{orderRepo: repo, nowFn: func() time.Time { return someConstTime }}
 	return repo, svc
+}
+
+func BuildOrder(id uint64, status domain.OrderStatus,
+	storageOff, updateOff time.Duration) domain.Order {
+
+	o := Stored(id, status)
+	o.StorageUntil = someConstTime.Add(storageOff)
+	o.LastUpdateTime = someConstTime.Add(updateOff)
+	return o
+}
+
+func OrderInStorage(id uint64, storageOff time.Duration) domain.Order {
+	return BuildOrder(id, domain.StatusInStorage, storageOff, 0)
+}
+
+func OrderGiven(id uint64, lastUpdOff time.Duration) domain.Order {
+	return BuildOrder(id, domain.StatusGivenToClient, 24*time.Hour, lastUpdOff)
+}
+
+func OrderReturned(id uint64, lastUpdOff time.Duration) domain.Order {
+	return BuildOrder(id, domain.StatusReturnedFromClient, 24*time.Hour, lastUpdOff)
+}
+
+func Updated(o domain.Order, newStatus domain.OrderStatus, t time.Time) domain.Order {
+	o.Status, o.LastUpdateTime = newStatus, t
+	return o
+}
+func DateString(off time.Duration) string {
+	return cli.MapTimeToString(someConstTime.Add(off))
+}
+
+func History(orderID uint64, status domain.OrderStatus,
+	changedOff time.Duration) domain.OrderHistory {
+
+	return domain.OrderHistory{
+		OrderID:   orderID,
+		Status:    status,
+		ChangedAt: someConstTime.Add(changedOff),
+	}
+}
+
+func TimesOf(h []domain.OrderHistory) (ts []time.Time) {
+	for _, rec := range h {
+		ts = append(ts, rec.ChangedAt)
+	}
+	return
+}
+
+func DTO(id uint64, pkg string, off time.Duration) domain.OrderToImport {
+	return domain.OrderToImport{
+		OrderID:      id,
+		ReceiverID:   someRecieverID,
+		StorageUntil: DateString(off),
+		PackageType:  pkg,
+		Weight:       5,
+		Price:        100,
+	}
 }
