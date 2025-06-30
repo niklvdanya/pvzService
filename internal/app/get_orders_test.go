@@ -190,8 +190,7 @@ func TestPVZService_GetOrderHistory(t *testing.T) {
 		BuildOrder(2, domain.StatusGivenToClient, 0, -1*time.Hour),
 		BuildOrder(3, domain.StatusGivenToClient, 0, -2*time.Hour),
 	}
-	want := []uint64{2, 3, 1}
-
+	wantIDs := []uint64{2, 3, 1}
 	tests := []struct {
 		name    string
 		setup   func(*mock.OrderRepositoryMock)
@@ -199,11 +198,19 @@ func TestPVZService_GetOrderHistory(t *testing.T) {
 		assertE assert.ErrorAssertionFunc
 	}{
 		{
-			name: "Success",
+			name: "Success_Sorted",
 			setup: func(r *mock.OrderRepositoryMock) {
 				r.GetAllOrdersMock.Expect(contextBack).Return(input, nil)
 			},
-			wantIDs: want,
+			wantIDs: wantIDs,
+			assertE: assert.NoError,
+		},
+		{
+			name: "Success_EmptyList",
+			setup: func(r *mock.OrderRepositoryMock) {
+				r.GetAllOrdersMock.Expect(contextBack).Return([]domain.Order{}, nil)
+			},
+			wantIDs: nil,
 			assertE: assert.NoError,
 		},
 		{
@@ -229,7 +236,6 @@ func TestPVZService_GetOrderHistory(t *testing.T) {
 		})
 	}
 }
-
 func TestPVZService_GetOrderHistoryByID(t *testing.T) {
 	t.Parallel()
 
