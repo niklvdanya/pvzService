@@ -91,8 +91,8 @@ func TestPVZService_ReturnOrdersFromClient(t *testing.T) {
 			name:     "Fail_UpdateError",
 			orderIDs: []uint64{6},
 			setup: func(r *mock.OrderRepositoryMock) {
-				o := OrderGiven(7, -2*time.Hour)
-				r.GetByIDMock.Expect(contextBack, uint64(7)).Return(o, nil)
+				o := OrderGiven(6, -2*time.Hour)
+				r.GetByIDMock.Expect(contextBack, uint64(6)).Return(o, nil)
 				r.UpdateMock.Expect(contextBack, Updated(o, domain.StatusReturnedFromClient, someConstTime)).Return(errUpdRet)
 			},
 			assertE: errIs(errUpdRet),
@@ -101,10 +101,10 @@ func TestPVZService_ReturnOrdersFromClient(t *testing.T) {
 			name:     "Fail_SaveHistoryError",
 			orderIDs: []uint64{7},
 			setup: func(r *mock.OrderRepositoryMock) {
-				o := OrderGiven(8, -3*time.Hour)
-				r.GetByIDMock.Expect(contextBack, uint64(8)).Return(o, nil)
+				o := OrderGiven(7, -3*time.Hour)
+				r.GetByIDMock.Expect(contextBack, uint64(7)).Return(o, nil)
 				r.UpdateMock.Expect(contextBack, Updated(o, domain.StatusReturnedFromClient, someConstTime)).Return(nil)
-				r.SaveHistoryMock.Expect(contextBack, History(8, domain.StatusReturnedFromClient, 0)).Return(errHistRet)
+				r.SaveHistoryMock.Expect(contextBack, History(7, domain.StatusReturnedFromClient, 0)).Return(errHistRet)
 			},
 			assertE: errIs(errHistRet),
 		},

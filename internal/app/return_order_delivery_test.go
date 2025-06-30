@@ -65,15 +65,15 @@ func TestPVZService_ReturnOrderToDelivery(t *testing.T) {
 			name:    "Fail_StorageNotExpired",
 			orderID: 4,
 			setup: func(r *mock.OrderRepositoryMock) {
-				r.GetByIDMock.Expect(contextBack, uint64(5)).Return(OrderInStorage(5, +1*time.Hour), nil)
+				r.GetByIDMock.Expect(contextBack, uint64(4)).Return(OrderInStorage(4, +1*time.Hour), nil)
 			},
-			assertE: errIs(domain.StorageNotExpiredError(5, DateString(+1*time.Hour))),
+			assertE: errIs(domain.StorageNotExpiredError(4, DateString(+1*time.Hour))),
 		},
 		{
 			name:    "Fail_UpdateError",
 			orderID: 5,
 			setup: func(r *mock.OrderRepositoryMock) {
-				orig := OrderInStorage(6, -1*time.Hour)
+				orig := OrderInStorage(5, -1*time.Hour)
 				upd := Updated(orig, domain.StatusReturnedWithoutClient, someConstTime)
 
 				r.GetByIDMock.Expect(contextBack, orig.OrderID).Return(orig, nil)
@@ -85,12 +85,12 @@ func TestPVZService_ReturnOrderToDelivery(t *testing.T) {
 			name:    "Fail_SaveHistoryError",
 			orderID: 6,
 			setup: func(r *mock.OrderRepositoryMock) {
-				orig := OrderInStorage(7, -1*time.Hour)
+				orig := OrderInStorage(6, -1*time.Hour)
 				upd := Updated(orig, domain.StatusReturnedWithoutClient, someConstTime)
 
 				r.GetByIDMock.Expect(contextBack, orig.OrderID).Return(orig, nil)
 				r.UpdateMock.Expect(contextBack, upd).Return(nil)
-				r.SaveHistoryMock.Expect(contextBack, History(7, domain.StatusReturnedWithoutClient, 0)).Return(errHistDel)
+				r.SaveHistoryMock.Expect(contextBack, History(6, domain.StatusReturnedWithoutClient, 0)).Return(errHistDel)
 			},
 			assertE: errIs(errHistDel),
 		},
