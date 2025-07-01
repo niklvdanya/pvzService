@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"time"
 
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
 )
@@ -20,11 +21,16 @@ type OrderRepository interface {
 
 type PVZService struct {
 	orderRepo OrderRepository
+	nowFn     func() time.Time
 }
 
-func NewPVZService(orderRepo OrderRepository) *PVZService {
+func NewPVZService(orderRepo OrderRepository, nowFn func() time.Time) *PVZService {
+	if nowFn == nil {
+		nowFn = time.Now
+	}
 	return &PVZService{
 		orderRepo: orderRepo,
+		nowFn:     nowFn,
 	}
 }
 

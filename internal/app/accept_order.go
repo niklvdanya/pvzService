@@ -3,28 +3,13 @@ package app
 import (
 	"context"
 	"fmt"
-	"time"
 
-	"gitlab.ozon.dev/safariproxd/homework/internal/adapter/cli"
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
 )
 
+// удалил часть валидации из бизнес логики, ибо в protoc validate она уже встроена
 func (s *PVZService) AcceptOrder(ctx context.Context, req domain.AcceptOrderRequest) (float64, error) {
-	currentTime := time.Now()
-	if req.StorageUntil.Before(currentTime) {
-		return 0, fmt.Errorf("validation: %w",
-			domain.ValidationFailedError(
-				fmt.Sprintf("storage period already expired (current: %s, provided: %s)",
-					cli.MapTimeToString(currentTime), cli.MapTimeToString(req.StorageUntil))))
-	}
-	if req.Weight <= 0 {
-		return 0, fmt.Errorf("validation: %w",
-			domain.ValidationFailedError("weight must be greater than 0"))
-	}
-	if req.Price <= 0 {
-		return 0, fmt.Errorf("validation: %w",
-			domain.ValidationFailedError("price must be greater than 0"))
-	}
+	currentTime := s.nowFn()
 
 	if _, err := s.orderRepo.GetByID(ctx, req.OrderID); err == nil {
 		return 0, fmt.Errorf("repo.GetByID: %w",

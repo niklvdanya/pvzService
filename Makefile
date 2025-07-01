@@ -8,7 +8,7 @@ APP_NAME := pvz
 BUILD_DIR := bin
 MAIN_PATH := cmd/pvz/main.go
 
-.PHONY: update linter build start run clean gateway swagger
+.PHONY: update linter build start run clean gateway swagger test test-coverage clean-coverage
 clean:
 	rm -rf $(BUILD_DIR)
 	rm -rf vendor.protogen
@@ -117,3 +117,14 @@ migrate-status:
 
 compose-up:
 	@docker-compose --env-file ./config/.env up -d
+
+	
+test-coverage:
+	go test -v -race -coverprofile=cover.out ./...
+	go tool cover -html=cover.out -o cover.html
+
+clean-coverage:
+	rm -f cover.out cover.html
+
+test:
+	go test -v -race ./...

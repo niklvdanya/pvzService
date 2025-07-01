@@ -9,10 +9,6 @@ import (
 )
 
 func (s *PVZService) GetReceiverOrders(ctx context.Context, req domain.ReceiverOrdersRequest) ([]domain.Order, uint64, error) {
-	if req.ReceiverID == 0 {
-		return nil, 0, fmt.Errorf("validation: %w", domain.ValidationFailedError("receiver ID cannot be empty"))
-	}
-
 	receiverOrders, err := s.orderRepo.GetByReceiverID(ctx, req.ReceiverID)
 	if err != nil {
 		return nil, 0, fmt.Errorf("repo.GetByReceiverID: %w", err)
@@ -65,10 +61,6 @@ func (s *PVZService) GetOrderHistory(ctx context.Context) ([]domain.Order, error
 }
 
 func (s *PVZService) GetOrderHistoryByID(ctx context.Context, orderID uint64) ([]domain.OrderHistory, error) {
-	if orderID == 0 {
-		return nil, fmt.Errorf("validation: %w", domain.ValidationFailedError("order ID cannot be empty"))
-	}
-
 	history, err := s.orderRepo.GetHistoryByOrderID(ctx, orderID)
 	if err != nil {
 		return nil, fmt.Errorf("repo.GetHistoryByOrderID: %w", err)
@@ -83,11 +75,9 @@ func (s *PVZService) GetOrderHistoryByID(ctx context.Context, orderID uint64) ([
 
 	return history, nil
 }
-func (s *PVZService) GetReceiverOrdersScroll(ctx context.Context, receiverID uint64, lastID, limit uint64) ([]domain.Order, uint64, error) {
-	if receiverID == 0 {
-		return nil, 0, fmt.Errorf("validation: %w", domain.ValidationFailedError("receiver ID cannot be empty"))
-	}
 
+// не используется в grpc (была как доп.задание в д/з 1)
+func (s *PVZService) GetReceiverOrdersScroll(ctx context.Context, receiverID uint64, lastID, limit uint64) ([]domain.Order, uint64, error) {
 	receiverOrders, err := s.orderRepo.GetByReceiverID(ctx, receiverID)
 	if err != nil {
 		return nil, 0, fmt.Errorf("repo.GetByReceiverID: %w", err)
