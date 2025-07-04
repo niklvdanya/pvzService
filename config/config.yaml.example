@@ -3,6 +3,8 @@ service:
   http_address: ":8081"
   swagger_address: ":8082"
   timeout: 2s
+  worker_limit: 16
+  queue_size: 512
 
 db:
   read_host: db
@@ -11,6 +13,6 @@ db:
   name: pvz
   sslmode: disable
   pool:
-    max_open: 10
-    max_size: 5
+    max_open: 20
+    max_idle: 10
   migrations_dir: migrations

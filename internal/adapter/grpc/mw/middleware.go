@@ -7,6 +7,7 @@ import (
 
 	"github.com/ulule/limiter/v3"
 	server "gitlab.ozon.dev/safariproxd/homework/internal/adapter/grpc"
+	"gitlab.ozon.dev/safariproxd/homework/internal/workerpool"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -85,5 +86,22 @@ func TimeoutInterceptor(timeout time.Duration) grpc.UnaryServerInterceptor {
 			return nil, status.Error(codes.DeadlineExceeded, "service timeout")
 		}
 		return resp, err
+	}
+}
+
+func PoolInterceptor(pool *workerpool.Pool) grpc.UnaryServerInterceptor {
+	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+		respCh := make(chan workerpool.Response, 1)
+		pool.Submit(workerpool.Job{
+			Ctx:  ctx,
+			Run:  func(c context.Context) (any, error) { return handler(c, req) },
+			Resp: respCh,
+		})
+		select {
+		case r := <-respCh:
+			return r.Value, r.Err
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
 	}
 }

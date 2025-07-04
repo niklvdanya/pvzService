@@ -13,6 +13,7 @@ import (
 	"gitlab.ozon.dev/safariproxd/homework/internal/app"
 	"gitlab.ozon.dev/safariproxd/homework/internal/config"
 	"gitlab.ozon.dev/safariproxd/homework/internal/repository/postgres"
+	"gitlab.ozon.dev/safariproxd/homework/internal/workerpool"
 	"gitlab.ozon.dev/safariproxd/homework/pkg/db"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
@@ -50,8 +51,11 @@ func main() {
 	})
 	ordersServer := server.NewOrdersServer(pvzService)
 
+	pool := workerpool.New(cfg.Service.WorkerLimit, cfg.Service.QueueSize)
+
 	grpcServer := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
+			mw.PoolInterceptor(pool),
 			mw.TimeoutInterceptor(cfg.Service.Timeout),
 			mw.LoggingInterceptor(),
 			mw.ValidationInterceptor(),

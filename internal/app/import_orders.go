@@ -3,36 +3,52 @@ package app
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"gitlab.ozon.dev/safariproxd/homework/internal/adapter/cli"
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
-	"go.uber.org/multierr"
+	"golang.org/x/sync/errgroup"
 )
 
-func (s *PVZService) ImportOrders(ctx context.Context, orders []domain.OrderToImport) (uint64, error) {
-	var combinedErr error
-	importedCount := uint64(0)
-	for _, rawOrder := range orders {
-		storageUntil, err := cli.MapStringToTime(rawOrder.StorageUntil)
-		if err != nil {
-			combinedErr = multierr.Append(combinedErr, fmt.Errorf("time.Parse: %w", err))
-			continue
-		}
-
-		req := domain.AcceptOrderRequest{
-			ReceiverID:   rawOrder.ReceiverID,
-			OrderID:      rawOrder.OrderID,
-			StorageUntil: storageUntil,
-			Weight:       rawOrder.Weight,
-			Price:        rawOrder.Price,
-			PackageType:  rawOrder.PackageType,
-		}
-		_, err = s.AcceptOrder(ctx, req)
-		if err != nil {
-			combinedErr = multierr.Append(combinedErr, fmt.Errorf("AcceptOrder: %w", err))
-			continue
-		}
-		importedCount++
+func (s *PVZService) importSingle(ctx context.Context, raw domain.OrderToImport) error {
+	storageUntil, err := cli.MapStringToTime(raw.StorageUntil)
+	if err != nil {
+		return fmt.Errorf("time.Parse: %w", err)
 	}
-	return importedCount, combinedErr
+	req := domain.AcceptOrderRequest{
+		ReceiverID:   raw.ReceiverID,
+		OrderID:      raw.OrderID,
+		StorageUntil: storageUntil,
+		Weight:       raw.Weight,
+		Price:        raw.Price,
+		PackageType:  raw.PackageType,
+	}
+	_, err = s.AcceptOrder(ctx, req)
+	return err
+}
+
+func (s *PVZService) ImportOrders(ctx context.Context, orders []domain.OrderToImport) (uint64, error) {
+	g, ctx := errgroup.WithContext(ctx)
+	sem := make(chan struct{}, parallelWorkers)
+
+	var cnt uint64
+	var mu sync.Mutex
+
+	for _, o := range orders {
+		sem <- struct{}{}
+		g.Go(func() error {
+			defer func() { <-sem }()
+			if err := s.importSingle(ctx, o); err != nil {
+				return err
+			}
+			mu.Lock()
+			cnt++
+			mu.Unlock()
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return cnt, err
+	}
+	return cnt, nil
 }
