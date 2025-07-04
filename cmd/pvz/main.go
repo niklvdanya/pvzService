@@ -1,4 +1,3 @@
-// cmd/pvz/main.go
 package main
 
 import (
