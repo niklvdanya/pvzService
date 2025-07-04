@@ -42,7 +42,7 @@ func (s *PVZService) returnSingle(ctx context.Context, receiverID uint64, orderI
 
 func (s *PVZService) ReturnOrdersFromClient(ctx context.Context, receiverID uint64, orderIDs []uint64) error {
 	g, ctx := errgroup.WithContext(ctx)
-	sem := make(chan struct{}, parallelWorkers)
+	sem := make(chan struct{}, s.workerLimit)
 	now := s.nowFn()
 
 	for _, id := range orderIDs {

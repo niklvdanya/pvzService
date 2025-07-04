@@ -10,8 +10,6 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-const parallelWorkers = 8 // TODO: вынести в конфиг
-
 func (s *PVZService) issueSingle(ctx context.Context, receiverID uint64, orderID uint64, now time.Time) error {
 	order, err := s.orderRepo.GetByID(ctx, orderID)
 	if err != nil {
@@ -48,7 +46,7 @@ func (s *PVZService) issueSingle(ctx context.Context, receiverID uint64, orderID
 
 func (s *PVZService) IssueOrdersToClient(ctx context.Context, receiverID uint64, orderIDs []uint64) error {
 	g, ctx := errgroup.WithContext(ctx)
-	sem := make(chan struct{}, parallelWorkers)
+	sem := make(chan struct{}, s.workerLimit)
 	now := s.nowFn()
 
 	for _, id := range orderIDs {

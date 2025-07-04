@@ -9,9 +9,6 @@ import (
 	"gitlab.ozon.dev/safariproxd/homework/internal/workerpool"
 )
 
-// AdminServer запускает HTTP‑ендпойнт `/resize`.
-//  POST /resize?workers=N  — изменяет количество воркеров.
-
 type AdminServer struct {
 	srv  *http.Server
 	pool *workerpool.Pool

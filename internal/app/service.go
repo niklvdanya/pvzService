@@ -20,17 +20,22 @@ type OrderRepository interface {
 }
 
 type PVZService struct {
-	orderRepo OrderRepository
-	nowFn     func() time.Time
+	orderRepo   OrderRepository
+	nowFn       func() time.Time
+	workerLimit int
 }
 
-func NewPVZService(orderRepo OrderRepository, nowFn func() time.Time) *PVZService {
+func NewPVZService(orderRepo OrderRepository, nowFn func() time.Time, limit int) *PVZService {
 	if nowFn == nil {
 		nowFn = time.Now
 	}
+	if limit <= 0 {
+		limit = 1
+	}
 	return &PVZService{
-		orderRepo: orderRepo,
-		nowFn:     nowFn,
+		orderRepo:   orderRepo,
+		nowFn:       nowFn,
+		workerLimit: limit,
 	}
 }
 

@@ -29,7 +29,7 @@ func (s *PVZService) importSingle(ctx context.Context, raw domain.OrderToImport)
 
 func (s *PVZService) ImportOrders(ctx context.Context, orders []domain.OrderToImport) (uint64, error) {
 	g, ctx := errgroup.WithContext(ctx)
-	sem := make(chan struct{}, parallelWorkers)
+	sem := make(chan struct{}, s.workerLimit)
 
 	var cnt uint64
 	var mu sync.Mutex
