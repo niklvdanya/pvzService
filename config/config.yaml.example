@@ -2,6 +2,7 @@ service:
   grpc_address: ":50051"
   http_address: ":8081"
   swagger_address: ":8082"
+  admin_address: ":6060"
   timeout: 2s
   worker_limit: 16
   queue_size: 512

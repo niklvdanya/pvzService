@@ -15,6 +15,7 @@ type Config struct {
 		GRPCAddress    string        `yaml:"grpc_address"`
 		HTTPAddress    string        `yaml:"http_address"`
 		SwaggerAddress string        `yaml:"swagger_address"`
+		AdminAddress   string        `yaml:"admin_address"`
 		Timeout        time.Duration `yaml:"timeout"`
 		WorkerLimit    int           `yaml:"worker_limit"`
 		QueueSize      int           `yaml:"queue_size"`

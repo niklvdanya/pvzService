@@ -51,6 +51,7 @@ services:
         condition: service_completed_successfully
     ports:
       - "50051:50051"
+      - "6060:6060"
     networks:
       - pvz-network
 
