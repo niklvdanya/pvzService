@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	mc "github.com/gojuno/minimock/v3"
 	"github.com/stretchr/testify/assert"
 
 	"gitlab.ozon.dev/safariproxd/homework/internal/adapter/cli"
@@ -79,8 +80,8 @@ func TestPVZService_ImportOrders(t *testing.T) {
 					return nil, domain.InvalidPackageError(code)
 				})
 				want := expOrder(DTO(3, "bag", 24*time.Hour), 5)
-				r.SaveMock.Expect(contextBack, want).Return(nil)
-				r.SaveHistoryMock.Expect(contextBack, History(3, domain.StatusInStorage, 0)).Return(nil)
+				r.SaveMock.Expect(mc.AnyContext, want).Return(nil)
+				r.SaveHistoryMock.Expect(mc.AnyContext, History(3, domain.StatusInStorage, 0)).Return(nil)
 			},
 			wantImported: 1,
 			assertE:      errIs(domain.InvalidPackageError("unknown")),
@@ -95,7 +96,7 @@ func TestPVZService_ImportOrders(t *testing.T) {
 				r.GetPackageRulesMock.Set(func(_ context.Context, _ string) ([]domain.PackageRules, error) {
 					return bagRules, nil
 				})
-				r.SaveMock.Expect(contextBack, expOrder(DTO(6, "bag", 24*time.Hour), 5)).Return(errDB)
+				r.SaveMock.Expect(mc.AnyContext, expOrder(DTO(6, "bag", 24*time.Hour), 5)).Return(errDB)
 			},
 			wantImported: 0,
 			assertE:      errIs(errDB),
