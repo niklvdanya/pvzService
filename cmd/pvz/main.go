@@ -49,12 +49,12 @@ func main() {
 
 	grpcServer := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
-			mw.PoolInterceptor(pool),
-			mw.TimeoutInterceptor(cfg.Service.Timeout),
+			mw.RateLimiterInterceptor(limiterInstance),
+			mw.TimeoutInterceptor(2*time.Second),
 			mw.LoggingInterceptor(),
 			mw.ValidationInterceptor(),
 			mw.ErrorMappingInterceptor(),
-			mw.RateLimiterInterceptor(limiterInstance),
+			mw.PoolInterceptor(pool),
 		),
 	)
 
