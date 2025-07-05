@@ -3,12 +3,14 @@ package app
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
-	"golang.org/x/sync/errgroup"
+	"go.uber.org/multierr"
 )
 
+// returnSingle не изменён
 func (s *PVZService) returnSingle(ctx context.Context, receiverID uint64, orderID uint64, now time.Time) error {
 	order, err := s.orderRepo.GetByID(ctx, orderID)
 	if err != nil {
@@ -41,18 +43,29 @@ func (s *PVZService) returnSingle(ctx context.Context, receiverID uint64, orderI
 }
 
 func (s *PVZService) ReturnOrdersFromClient(ctx context.Context, receiverID uint64, orderIDs []uint64) error {
-	g, ctx := errgroup.WithContext(ctx)
-	sem := make(chan struct{}, s.workerLimit)
+	sem := make(chan struct{}, parallelWorkers)
 	now := s.nowFn()
+
+	var combined error
+	var mu sync.Mutex
+	var wg sync.WaitGroup
 
 	for _, id := range orderIDs {
 		sem <- struct{}{}
-		g.Go(func() error {
+		wg.Add(1)
+		go func(oid uint64) {
 			defer func() {
 				<-sem
+				wg.Done()
 			}()
-			return s.returnSingle(ctx, receiverID, id, now)
-		})
+			if err := s.returnSingle(ctx, receiverID, oid, now); err != nil {
+				mu.Lock()
+				combined = multierr.Append(combined, err)
+				mu.Unlock()
+			}
+		}(id)
 	}
-	return g.Wait()
+
+	wg.Wait()
+	return combined
 }

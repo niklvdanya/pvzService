@@ -3,11 +3,12 @@ package app
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"gitlab.ozon.dev/safariproxd/homework/internal/adapter/cli"
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
-	"golang.org/x/sync/errgroup"
+	"go.uber.org/multierr"
 )
 
 func (s *PVZService) issueSingle(ctx context.Context, receiverID uint64, orderID uint64, now time.Time) error {
@@ -45,16 +46,29 @@ func (s *PVZService) issueSingle(ctx context.Context, receiverID uint64, orderID
 }
 
 func (s *PVZService) IssueOrdersToClient(ctx context.Context, receiverID uint64, orderIDs []uint64) error {
-	g, ctx := errgroup.WithContext(ctx)
-	sem := make(chan struct{}, s.workerLimit)
+	sem := make(chan struct{}, parallelWorkers)
 	now := s.nowFn()
+
+	var combined error
+	var mu sync.Mutex
+	var wg sync.WaitGroup
 
 	for _, id := range orderIDs {
 		sem <- struct{}{}
-		g.Go(func() error {
-			defer func() { <-sem }()
-			return s.issueSingle(ctx, receiverID, id, now)
-		})
+		wg.Add(1)
+		go func(oid uint64) {
+			defer func() {
+				<-sem
+				wg.Done()
+			}()
+			if err := s.issueSingle(ctx, receiverID, oid, now); err != nil {
+				mu.Lock()
+				combined = multierr.Append(combined, err)
+				mu.Unlock()
+			}
+		}(id)
 	}
-	return g.Wait()
+
+	wg.Wait()
+	return combined
 }

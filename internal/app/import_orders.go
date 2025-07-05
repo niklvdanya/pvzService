@@ -4,10 +4,11 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 
 	"gitlab.ozon.dev/safariproxd/homework/internal/adapter/cli"
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
-	"golang.org/x/sync/errgroup"
+	"go.uber.org/multierr"
 )
 
 func (s *PVZService) importSingle(ctx context.Context, raw domain.OrderToImport) error {
@@ -27,28 +28,35 @@ func (s *PVZService) importSingle(ctx context.Context, raw domain.OrderToImport)
 	return err
 }
 
-func (s *PVZService) ImportOrders(ctx context.Context, orders []domain.OrderToImport) (uint64, error) {
-	g, ctx := errgroup.WithContext(ctx)
-	sem := make(chan struct{}, s.workerLimit)
+const parallelWorkers = 8
 
-	var cnt uint64
+func (s *PVZService) ImportOrders(ctx context.Context, orders []domain.OrderToImport) (uint64, error) {
+	sem := make(chan struct{}, parallelWorkers)
+
+	var processed uint64
+	var combined error
 	var mu sync.Mutex
+	var wg sync.WaitGroup
 
 	for _, o := range orders {
 		sem <- struct{}{}
-		g.Go(func() error {
-			defer func() { <-sem }()
-			if err := s.importSingle(ctx, o); err != nil {
-				return err
+		wg.Add(1)
+
+		go func(ord domain.OrderToImport) {
+			defer func() {
+				<-sem
+				wg.Done()
+			}()
+			if err := s.importSingle(ctx, ord); err != nil {
+				mu.Lock()
+				combined = multierr.Append(combined, err)
+				mu.Unlock()
+				return
 			}
-			mu.Lock()
-			cnt++
-			mu.Unlock()
-			return nil
-		})
+			atomic.AddUint64(&processed, 1)
+		}(o)
 	}
-	if err := g.Wait(); err != nil {
-		return cnt, err
-	}
-	return cnt, nil
+
+	wg.Wait()
+	return processed, combined
 }
