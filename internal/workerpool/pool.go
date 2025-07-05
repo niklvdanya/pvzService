@@ -8,7 +8,7 @@ import (
 
 type Pool struct {
 	jobs    chan Job
-	kill    chan struct{}
+	kill    chan struct{} // сигналы для метода Resize
 	rootCtx context.Context
 	cancel  context.CancelFunc
 	wg      sync.WaitGroup
@@ -52,6 +52,7 @@ func (p *Pool) worker() {
 			if !ok {
 				return
 			}
+			// проверяем отмену контеста до выполнения
 			if errCtx := job.Ctx.Err(); errCtx != nil {
 				select {
 				case job.Resp <- Response{Err: errCtx}:
@@ -75,6 +76,7 @@ func (p *Pool) Submit(j Job) {
 	select {
 	case p.jobs <- j:
 	default:
+		// случай для заполненной очереди: выполняем задачу синхронно, чтобы не задерживать вызов rpc‑хендлера
 		v, err := j.Run(j.Ctx)
 		select {
 		case j.Resp <- Response{Value: v, Err: err}:
@@ -96,6 +98,7 @@ func (p *Pool) Resize(n int) {
 		p.spawn(n - cur)
 	} else {
 		diff := cur - n
+		// первые curr - n воркеров, которые попадут в case <-p.kill: будут завершены
 		for i := 0; i < diff; i++ {
 			p.kill <- struct{}{}
 		}
