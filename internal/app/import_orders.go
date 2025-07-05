@@ -28,10 +28,8 @@ func (s *PVZService) importSingle(ctx context.Context, raw domain.OrderToImport)
 	return err
 }
 
-const parallelWorkers = 8
-
 func (s *PVZService) ImportOrders(ctx context.Context, orders []domain.OrderToImport) (uint64, error) {
-	sem := make(chan struct{}, parallelWorkers)
+	sem := make(chan struct{}, s.workerLimit)
 
 	var processed uint64
 	var combined error

@@ -46,7 +46,7 @@ func (s *PVZService) issueSingle(ctx context.Context, receiverID uint64, orderID
 }
 
 func (s *PVZService) IssueOrdersToClient(ctx context.Context, receiverID uint64, orderIDs []uint64) error {
-	sem := make(chan struct{}, parallelWorkers)
+	sem := make(chan struct{}, s.workerLimit)
 	now := s.nowFn()
 
 	var combined error

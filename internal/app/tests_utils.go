@@ -38,7 +38,8 @@ func IdsOf(ord []domain.Order) (ids []uint64) {
 func NewEnv(t *testing.T) (*mock.OrderRepositoryMock, *PVZService) {
 	ctrl := minimock.NewController(t)
 	repo := mock.NewOrderRepositoryMock(ctrl)
-	svc := &PVZService{orderRepo: repo, nowFn: func() time.Time { return someConstTime }}
+	const testWorkerLimit = 8
+	svc := &PVZService{orderRepo: repo, nowFn: func() time.Time { return someConstTime }, workerLimit: testWorkerLimit}
 	return repo, svc
 }
 

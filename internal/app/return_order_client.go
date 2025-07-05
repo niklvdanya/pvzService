@@ -10,7 +10,6 @@ import (
 	"go.uber.org/multierr"
 )
 
-// returnSingle не изменён
 func (s *PVZService) returnSingle(ctx context.Context, receiverID uint64, orderID uint64, now time.Time) error {
 	order, err := s.orderRepo.GetByID(ctx, orderID)
 	if err != nil {
@@ -43,7 +42,7 @@ func (s *PVZService) returnSingle(ctx context.Context, receiverID uint64, orderI
 }
 
 func (s *PVZService) ReturnOrdersFromClient(ctx context.Context, receiverID uint64, orderIDs []uint64) error {
-	sem := make(chan struct{}, parallelWorkers)
+	sem := make(chan struct{}, s.workerLimit)
 	now := s.nowFn()
 
 	var combined error
