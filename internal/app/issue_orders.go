@@ -3,12 +3,10 @@ package app
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
 	"gitlab.ozon.dev/safariproxd/homework/internal/adapter/cli"
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
-	"go.uber.org/multierr"
 )
 
 func (s *PVZService) issueSingle(ctx context.Context, receiverID uint64, orderID uint64, now time.Time) error {
@@ -45,30 +43,13 @@ func (s *PVZService) issueSingle(ctx context.Context, receiverID uint64, orderID
 	return s.orderRepo.SaveHistory(ctx, hist)
 }
 
-func (s *PVZService) IssueOrdersToClient(ctx context.Context, receiverID uint64, orderIDs []uint64) error {
-	sem := make(chan struct{}, s.workerLimit)
-	now := s.nowFn()
-
-	var combined error
-	var mu sync.Mutex
-	var wg sync.WaitGroup
-
-	for _, id := range orderIDs {
-		sem <- struct{}{}
-		wg.Add(1)
-		go func(oid uint64) {
-			defer func() {
-				<-sem
-				wg.Done()
-			}()
-			if err := s.issueSingle(ctx, receiverID, oid, now); err != nil {
-				mu.Lock()
-				combined = multierr.Append(combined, err)
-				mu.Unlock()
-			}
-		}(id)
-	}
-
-	wg.Wait()
-	return combined
+func (s *PVZService) IssueOrdersToClient(
+	ctx context.Context,
+	receiverID uint64,
+	orderIDs []uint64,
+) error {
+	_, err := processConcurrently(ctx, orderIDs, s.workerLimit, func(c context.Context, id uint64) error {
+		return s.issueSingle(c, receiverID, id, s.nowFn())
+	})
+	return err
 }

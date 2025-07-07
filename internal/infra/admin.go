@@ -2,6 +2,7 @@ package infra
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -38,7 +39,7 @@ func NewAdmin(addr string, pool *workerpool.Pool) *AdminServer {
 
 func (a *AdminServer) Start() {
 	go func() {
-		if err := a.srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := a.srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			slog.Error("admin listen error", "error", err)
 		}
 	}()

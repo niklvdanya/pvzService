@@ -13,6 +13,8 @@ type Pool struct {
 	cancel  context.CancelFunc
 	wg      sync.WaitGroup
 	workers int32
+	mu      sync.RWMutex
+	closed  bool
 }
 
 func New(workerCnt, queueSize int) *Pool {
@@ -89,6 +91,14 @@ func (p *Pool) Resize(n int) {
 	if n < 0 {
 		return
 	}
+
+	p.mu.RLock()
+	if p.closed {
+		p.mu.RUnlock()
+		return
+	}
+	p.mu.RUnlock()
+
 	cur := int(atomic.LoadInt32(&p.workers))
 	if n == cur {
 		return
@@ -98,7 +108,6 @@ func (p *Pool) Resize(n int) {
 		p.spawn(n - cur)
 	} else {
 		diff := cur - n
-		// первые curr - n воркеров, которые попадут в case <-p.kill: будут завершены
 		for i := 0; i < diff; i++ {
 			p.kill <- struct{}{}
 		}
@@ -107,6 +116,14 @@ func (p *Pool) Resize(n int) {
 }
 
 func (p *Pool) Close() {
+	p.mu.Lock()
+	if p.closed {
+		p.mu.Unlock()
+		return
+	}
+	p.closed = true
+	p.mu.Unlock()
+
 	p.cancel()
 	close(p.jobs)
 	for i := int32(0); i < atomic.LoadInt32(&p.workers); i++ {
