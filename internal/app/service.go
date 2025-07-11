@@ -2,9 +2,11 @@ package app
 
 import (
 	"context"
+	"sync/atomic"
 	"time"
 
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
+	"golang.org/x/sync/errgroup"
 )
 
 type OrderRepository interface {
@@ -20,17 +22,22 @@ type OrderRepository interface {
 }
 
 type PVZService struct {
-	orderRepo OrderRepository
-	nowFn     func() time.Time
+	orderRepo   OrderRepository
+	nowFn       func() time.Time
+	workerLimit int
 }
 
-func NewPVZService(orderRepo OrderRepository, nowFn func() time.Time) *PVZService {
+func NewPVZService(orderRepo OrderRepository, nowFn func() time.Time, limit int) *PVZService {
 	if nowFn == nil {
 		nowFn = time.Now
 	}
+	if limit <= 0 {
+		limit = 1
+	}
 	return &PVZService{
-		orderRepo: orderRepo,
-		nowFn:     nowFn,
+		orderRepo:   orderRepo,
+		nowFn:       nowFn,
+		workerLimit: limit,
 	}
 }
 
@@ -55,4 +62,38 @@ func Paginate[T any](items []T, currentPage, itemsPerPage uint64) []T {
 	}
 
 	return items[startIndex:endIndex]
+}
+
+func processConcurrently[T any](
+	parentCtx context.Context,
+	items []T,
+	workerLimit int,
+	fn func(context.Context, T) error,
+) (uint64, error) {
+	g, ctx := errgroup.WithContext(parentCtx)
+	sem := make(chan struct{}, workerLimit)
+
+	var processed uint64
+
+	for _, item := range items {
+		g.Go(func() error {
+			select {
+			case sem <- struct{}{}:
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+			defer func() {
+				<-sem
+			}()
+
+			if err := fn(ctx, item); err != nil {
+				return err
+			}
+			atomic.AddUint64(&processed, 1)
+			return nil
+		})
+	}
+
+	err := g.Wait()
+	return processed, err
 }
