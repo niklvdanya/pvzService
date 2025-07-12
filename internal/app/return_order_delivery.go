@@ -49,7 +49,17 @@ func (s *PVZService) ReturnOrderToDelivery(ctx context.Context, orderID uint64) 
 			Status: "returned_to_courier",
 		},
 	)
-
+	if s.dbClient == nil {
+		if err := s.orderRepo.Update(ctx, order); err != nil {
+			return fmt.Errorf("failed to update order: %w", err)
+		}
+		history := domain.OrderHistory{
+			OrderID:   order.OrderID,
+			Status:    order.Status,
+			ChangedAt: order.AcceptTime,
+		}
+		return s.orderRepo.SaveHistory(ctx, history)
+	}
 	return s.withTransaction(ctx, func(tx *db.Tx) error {
 		if err := updateOrderInTx(ctx, tx, order); err != nil {
 			return fmt.Errorf("update order: %w", err)

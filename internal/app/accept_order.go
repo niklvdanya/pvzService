@@ -66,14 +66,20 @@ func (s *PVZService) AcceptOrder(ctx context.Context, req domain.AcceptOrderRequ
 	)
 	if s.dbClient == nil {
 		if err := s.orderRepo.Save(ctx, order); err != nil {
-			return 0, fmt.Errorf("failed to save order: %w", err)
+			return 0, fmt.Errorf("repo.Save: %w", err)
 		}
+
 		history := domain.OrderHistory{
-			OrderID:   order.OrderID,
-			Status:    order.Status,
-			ChangedAt: order.AcceptTime,
+			OrderID:   req.OrderID,
+			Status:    domain.StatusInStorage,
+			ChangedAt: currentTime,
 		}
-		return totalPrice, s.orderRepo.SaveHistory(ctx, history)
+		if err := s.orderRepo.SaveHistory(ctx, history); err != nil {
+			return 0, fmt.Errorf("repo.SaveHistory: %w", err)
+		}
+
+		return totalPrice, nil
+
 	}
 	err := s.withTransaction(ctx, func(tx *db.Tx) error {
 		if err := saveOrderInTx(ctx, tx, order); err != nil {
