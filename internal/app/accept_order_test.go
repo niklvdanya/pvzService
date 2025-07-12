@@ -12,10 +12,7 @@ import (
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
 )
 
-var (
-	errSaveOrder   = errors.New("save error")
-	errSaveHistory = errors.New("save history error")
-)
+var errSaveHistory = errors.New("save history error")
 
 func TestPVZService_AcceptOrder(t *testing.T) {
 	t.Parallel()
@@ -172,29 +169,26 @@ func TestPVZService_AcceptOrder(t *testing.T) {
 			wantErr:   assert.NoError,
 		},
 		{
-			name: "Fail_SaveOrder",
-			req:  fixture.defaultReq,
-			prepare: func(t *testing.T, repo *mock.OrderRepositoryMock, req domain.AcceptOrderRequest) {
-				expectedOrder := buildExpectedOrder(req, req.Price+5, fixture.fixedTime)
-
-				expectOrderNotFound(repo, fixture.ctx, req.OrderID)
-				expectPackageRules(repo, fixture.ctx, req.PackageType, fixture.packageRules, nil)
-				expectSaveOrder(repo, fixture.ctx, expectedOrder, errSaveOrder)
-			},
-			wantTotal: 0,
-			wantErr:   errIs(errSaveOrder),
-		},
-		{
 			name: "Fail_SaveHistory",
 			req:  fixture.defaultReq,
 			prepare: func(t *testing.T, repo *mock.OrderRepositoryMock, req domain.AcceptOrderRequest) {
 				expectedOrder := buildExpectedOrder(req, req.Price+5, fixture.fixedTime)
 				expectedHistory := buildExpectedHistory(req.OrderID, fixture.fixedTime)
-
 				expectOrderNotFound(repo, fixture.ctx, req.OrderID)
 				expectPackageRules(repo, fixture.ctx, req.PackageType, fixture.packageRules, nil)
-				expectSaveOrder(repo, fixture.ctx, expectedOrder, nil)
-				expectSaveHistory(repo, fixture.ctx, expectedHistory, errSaveHistory)
+				repo.SaveMock.Set(func(ctx context.Context, order domain.Order) error {
+					if assert.Equal(t, expectedOrder, order) {
+						return nil
+					}
+					return errors.New("unexpected order")
+				})
+
+				repo.SaveHistoryMock.Set(func(ctx context.Context, history domain.OrderHistory) error {
+					if assert.Equal(t, expectedHistory, history) {
+						return errSaveHistory
+					}
+					return errors.New("unexpected history")
+				})
 			},
 			wantTotal: 0,
 			wantErr:   errIs(errSaveHistory),

@@ -5,8 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log/slog"
-
-	_ "github.com/lib/pq"
+	"sync"
 )
 
 type ClientMode string
@@ -20,13 +19,15 @@ type Client struct {
 	readDB  *sql.DB
 	writeDB *sql.DB
 	logger  *slog.Logger
+	txMutex sync.Mutex
 }
 
 type Config struct {
-	ReadDSN  string
-	WriteDSN string
-	MaxOpen  int
-	MaxIdle  int
+	ReadDSN      string
+	WriteDSN     string
+	MaxOpen      int
+	MaxIdle      int
+	MaxTxRetries int
 }
 
 func NewClient(cfg Config) (*Client, error) {
@@ -46,6 +47,17 @@ func NewClient(cfg Config) (*Client, error) {
 	}
 	writeDB.SetMaxOpenConns(cfg.MaxOpen)
 	writeDB.SetMaxIdleConns(cfg.MaxIdle)
+
+	if err := readDB.Ping(); err != nil {
+		readDB.Close()
+		writeDB.Close()
+		return nil, fmt.Errorf("read DB ping failed: %w", err)
+	}
+	if err := writeDB.Ping(); err != nil {
+		readDB.Close()
+		writeDB.Close()
+		return nil, fmt.Errorf("write DB ping failed: %w", err)
+	}
 
 	return &Client{
 		readDB:  readDB,
@@ -96,6 +108,9 @@ func (c *Client) QueryRow(ctx context.Context, query string, args ...interface{}
 }
 
 func (c *Client) BeginTx(ctx context.Context) (*Tx, error) {
+	c.txMutex.Lock()
+	defer c.txMutex.Unlock()
+
 	tx, err := c.writeDB.BeginTx(ctx, nil)
 	if err != nil {
 		c.logger.Error("Error starting transaction", "error", err)

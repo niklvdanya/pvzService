@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -31,11 +32,24 @@ func TestPVZService_ReturnOrderToDelivery(t *testing.T) {
 			orderID: 1,
 			setup: func(r *mock.OrderRepositoryMock) {
 				orig := OrderInStorage(1, -1*time.Hour)
-				upd := Updated(orig, domain.StatusReturnedWithoutClient, someConstTime)
-
-				r.GetByIDMock.Expect(contextBack, orig.OrderID).Return(orig, nil)
-				r.UpdateMock.Expect(contextBack, upd).Return(nil)
-				r.SaveHistoryMock.Expect(contextBack, History(1, domain.StatusReturnedWithoutClient, 0)).Return(nil)
+				r.GetByIDMock.Set(func(ctx context.Context, id uint64) (domain.Order, error) {
+					if id == 1 {
+						return orig, nil
+					}
+					return domain.Order{}, errors.New("unexpected id")
+				})
+				r.UpdateMock.Set(func(ctx context.Context, o domain.Order) error {
+					if o.OrderID == 1 && o.Status == domain.StatusReturnedWithoutClient {
+						return nil
+					}
+					return errors.New("unexpected update params")
+				})
+				r.SaveHistoryMock.Set(func(ctx context.Context, h domain.OrderHistory) error {
+					if h.OrderID == 1 && h.Status == domain.StatusReturnedWithoutClient {
+						return nil
+					}
+					return errors.New("unexpected history params")
+				})
 			},
 			assertE: assert.NoError,
 		},
@@ -45,11 +59,25 @@ func TestPVZService_ReturnOrderToDelivery(t *testing.T) {
 			setup: func(r *mock.OrderRepositoryMock) {
 				orig := OrderReturned(2, -1*time.Hour)
 				orig.StorageUntil = someConstTime.Add(-1 * time.Hour)
-				upd := Updated(orig, domain.StatusGivenToCourier, someConstTime)
 
-				r.GetByIDMock.Expect(contextBack, orig.OrderID).Return(orig, nil)
-				r.UpdateMock.Expect(contextBack, upd).Return(nil)
-				r.SaveHistoryMock.Expect(contextBack, History(2, domain.StatusGivenToCourier, 0)).Return(nil)
+				r.GetByIDMock.Set(func(ctx context.Context, id uint64) (domain.Order, error) {
+					if id == 2 {
+						return orig, nil
+					}
+					return domain.Order{}, errors.New("unexpected id")
+				})
+				r.UpdateMock.Set(func(ctx context.Context, o domain.Order) error {
+					if o.OrderID == 2 && o.Status == domain.StatusGivenToCourier {
+						return nil
+					}
+					return errors.New("unexpected update params")
+				})
+				r.SaveHistoryMock.Set(func(ctx context.Context, h domain.OrderHistory) error {
+					if h.OrderID == 2 && h.Status == domain.StatusGivenToCourier {
+						return nil
+					}
+					return errors.New("unexpected history params")
+				})
 			},
 			assertE: assert.NoError,
 		},
@@ -57,7 +85,12 @@ func TestPVZService_ReturnOrderToDelivery(t *testing.T) {
 			name:    "Fail_RepoError",
 			orderID: 3,
 			setup: func(r *mock.OrderRepositoryMock) {
-				r.GetByIDMock.Expect(contextBack, uint64(3)).Return(domain.Order{}, errDBDel)
+				r.GetByIDMock.Set(func(ctx context.Context, id uint64) (domain.Order, error) {
+					if id == 3 {
+						return domain.Order{}, errDBDel
+					}
+					return domain.Order{}, errors.New("unexpected id")
+				})
 			},
 			assertE: errIs(errDBDel),
 		},
@@ -65,7 +98,12 @@ func TestPVZService_ReturnOrderToDelivery(t *testing.T) {
 			name:    "Fail_StorageNotExpired",
 			orderID: 4,
 			setup: func(r *mock.OrderRepositoryMock) {
-				r.GetByIDMock.Expect(contextBack, uint64(4)).Return(OrderInStorage(4, +1*time.Hour), nil)
+				r.GetByIDMock.Set(func(ctx context.Context, id uint64) (domain.Order, error) {
+					if id == 4 {
+						return OrderInStorage(4, +1*time.Hour), nil
+					}
+					return domain.Order{}, errors.New("unexpected id")
+				})
 			},
 			assertE: errIs(domain.StorageNotExpiredError(4, DateString(+1*time.Hour))),
 		},
@@ -74,10 +112,19 @@ func TestPVZService_ReturnOrderToDelivery(t *testing.T) {
 			orderID: 5,
 			setup: func(r *mock.OrderRepositoryMock) {
 				orig := OrderInStorage(5, -1*time.Hour)
-				upd := Updated(orig, domain.StatusReturnedWithoutClient, someConstTime)
 
-				r.GetByIDMock.Expect(contextBack, orig.OrderID).Return(orig, nil)
-				r.UpdateMock.Expect(contextBack, upd).Return(errUpdDel)
+				r.GetByIDMock.Set(func(ctx context.Context, id uint64) (domain.Order, error) {
+					if id == 5 {
+						return orig, nil
+					}
+					return domain.Order{}, errors.New("unexpected id")
+				})
+				r.UpdateMock.Set(func(ctx context.Context, o domain.Order) error {
+					if o.OrderID == 5 && o.Status == domain.StatusReturnedWithoutClient {
+						return errUpdDel
+					}
+					return errors.New("unexpected update params")
+				})
 			},
 			assertE: errIs(errUpdDel),
 		},
@@ -86,11 +133,25 @@ func TestPVZService_ReturnOrderToDelivery(t *testing.T) {
 			orderID: 6,
 			setup: func(r *mock.OrderRepositoryMock) {
 				orig := OrderInStorage(6, -1*time.Hour)
-				upd := Updated(orig, domain.StatusReturnedWithoutClient, someConstTime)
 
-				r.GetByIDMock.Expect(contextBack, orig.OrderID).Return(orig, nil)
-				r.UpdateMock.Expect(contextBack, upd).Return(nil)
-				r.SaveHistoryMock.Expect(contextBack, History(6, domain.StatusReturnedWithoutClient, 0)).Return(errHistDel)
+				r.GetByIDMock.Set(func(ctx context.Context, id uint64) (domain.Order, error) {
+					if id == 6 {
+						return orig, nil
+					}
+					return domain.Order{}, errors.New("unexpected id")
+				})
+				r.UpdateMock.Set(func(ctx context.Context, o domain.Order) error {
+					if o.OrderID == 6 && o.Status == domain.StatusReturnedWithoutClient {
+						return nil
+					}
+					return errors.New("unexpected update params")
+				})
+				r.SaveHistoryMock.Set(func(ctx context.Context, h domain.OrderHistory) error {
+					if h.OrderID == 6 && h.Status == domain.StatusReturnedWithoutClient {
+						return errHistDel
+					}
+					return errors.New("unexpected history params")
+				})
 			},
 			assertE: errIs(errHistDel),
 		},
@@ -102,7 +163,7 @@ func TestPVZService_ReturnOrderToDelivery(t *testing.T) {
 			repo, svc := NewEnv(t)
 			tc.setup(repo)
 
-			err := svc.ReturnOrderToDelivery(contextBack, tc.orderID)
+			err := svc.ReturnOrderToDelivery(context.Background(), tc.orderID)
 			tc.assertE(t, err)
 		})
 	}

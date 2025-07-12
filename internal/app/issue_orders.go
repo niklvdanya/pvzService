@@ -50,7 +50,17 @@ func (s *PVZService) issueSingle(ctx context.Context, receiverID uint64, orderID
 			Status: "issued",
 		},
 	)
-
+	if s.dbClient == nil {
+		if err := s.orderRepo.Update(ctx, order); err != nil {
+			return fmt.Errorf("failed to update order: %w", err)
+		}
+		history := domain.OrderHistory{
+			OrderID:   order.OrderID,
+			Status:    order.Status,
+			ChangedAt: order.AcceptTime,
+		}
+		return s.orderRepo.SaveHistory(ctx, history)
+	}
 	return s.withTransaction(ctx, func(tx *db.Tx) error {
 		if err := updateOrderInTx(ctx, tx, order); err != nil {
 			return fmt.Errorf("update order: %w", err)
