@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
+	"gitlab.ozon.dev/safariproxd/homework/pkg/db"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -21,13 +22,19 @@ type OrderRepository interface {
 	GetHistoryByOrderID(ctx context.Context, orderID uint64) ([]domain.OrderHistory, error)
 }
 
+type OutboxRepository interface {
+	Save(ctx context.Context, payload []byte) error
+}
+
 type PVZService struct {
 	orderRepo   OrderRepository
+	outboxRepo  OutboxRepository
+	dbClient    *db.Client
 	nowFn       func() time.Time
 	workerLimit int
 }
 
-func NewPVZService(orderRepo OrderRepository, nowFn func() time.Time, limit int) *PVZService {
+func NewPVZService(orderRepo OrderRepository, outboxRepo OutboxRepository, dbClient *db.Client, nowFn func() time.Time, limit int) *PVZService {
 	if nowFn == nil {
 		nowFn = time.Now
 	}
@@ -36,6 +43,8 @@ func NewPVZService(orderRepo OrderRepository, nowFn func() time.Time, limit int)
 	}
 	return &PVZService{
 		orderRepo:   orderRepo,
+		outboxRepo:  outboxRepo,
+		dbClient:    dbClient,
 		nowFn:       nowFn,
 		workerLimit: limit,
 	}

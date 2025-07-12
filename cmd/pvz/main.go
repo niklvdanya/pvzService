@@ -41,7 +41,8 @@ func main() {
 	}
 	defer client.Close()
 	orderRepo := postgres.NewOrderRepository(client)
-	pvzService := app.NewPVZService(orderRepo, time.Now, cfg.Service.WorkerLimit)
+	outboxRepo := postgres.NewOutboxRepository(client)
+	pvzService := app.NewPVZService(orderRepo, outboxRepo, client, time.Now, cfg.Service.WorkerLimit)
 
 	pool := workerpool.New(cfg.Service.WorkerLimit, cfg.Service.QueueSize)
 

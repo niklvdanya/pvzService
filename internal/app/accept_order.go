@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
+	"gitlab.ozon.dev/safariproxd/homework/pkg/db"
 )
 
 // удалил часть валидации из бизнес логики, ибо в protoc validate она уже встроена
@@ -45,17 +46,43 @@ func (s *PVZService) AcceptOrder(ctx context.Context, req domain.AcceptOrderRequ
 		Weight:         req.Weight,
 		Price:          totalPrice,
 	}
-	if err := s.orderRepo.Save(ctx, order); err != nil {
-		return 0, fmt.Errorf("repo.Save: %w", err)
-	}
 
 	history := domain.OrderHistory{
 		OrderID:   req.OrderID,
 		Status:    domain.StatusInStorage,
 		ChangedAt: currentTime,
 	}
-	if err := s.orderRepo.SaveHistory(ctx, history); err != nil {
-		return 0, fmt.Errorf("repo.SaveHistory: %w", err)
+	event := domain.NewEvent(
+		domain.EventTypeOrderAccepted,
+		domain.Actor{
+			Type: domain.ActorTypeCourier,
+			ID:   1,
+		},
+		domain.OrderInfo{
+			ID:     req.OrderID,
+			UserID: req.ReceiverID,
+			Status: "accepted",
+		},
+	)
+
+	err := s.withTransaction(ctx, func(tx *db.Tx) error {
+		if err := saveOrderInTx(ctx, tx, order); err != nil {
+			return fmt.Errorf("save order: %w", err)
+		}
+
+		if err := saveHistoryInTx(ctx, tx, history); err != nil {
+			return fmt.Errorf("save history: %w", err)
+		}
+
+		if err := saveEventInTx(ctx, tx, event); err != nil {
+			return fmt.Errorf("save event: %w", err)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return 0, err
 	}
 
 	return totalPrice, nil

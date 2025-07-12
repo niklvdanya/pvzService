@@ -35,6 +35,20 @@ type Config struct {
 		} `yaml:"pool"`
 		MigrationsDir string `yaml:"migrations_dir"`
 	} `yaml:"db"`
+
+	Kafka struct {
+		Brokers  []string `yaml:"brokers"`
+		Topic    string   `yaml:"topic"`
+		Producer struct {
+			Timeout time.Duration `yaml:"timeout"`
+			Retries int           `yaml:"retries"`
+		} `yaml:"producer"`
+	} `yaml:"kafka"`
+
+	Outbox struct {
+		WorkerInterval time.Duration `yaml:"worker_interval"`
+		BatchSize      int           `yaml:"batch_size"`
+	} `yaml:"outbox"`
 }
 
 func (c *Config) ReadDSN() string {

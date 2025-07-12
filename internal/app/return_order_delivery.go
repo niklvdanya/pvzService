@@ -6,6 +6,7 @@ import (
 
 	"gitlab.ozon.dev/safariproxd/homework/internal/adapter/cli"
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
+	"gitlab.ozon.dev/safariproxd/homework/pkg/db"
 )
 
 func (s *PVZService) ReturnOrderToDelivery(ctx context.Context, orderID uint64) error {
@@ -30,18 +31,38 @@ func (s *PVZService) ReturnOrderToDelivery(ctx context.Context, orderID uint64) 
 	order.Status = newStatus
 	order.LastUpdateTime = s.nowFn()
 
-	if err := s.orderRepo.Update(ctx, order); err != nil {
-		return fmt.Errorf("repo.Update: %w", err)
-	}
-
 	history := domain.OrderHistory{
 		OrderID:   orderID,
 		Status:    newStatus,
 		ChangedAt: order.LastUpdateTime,
 	}
-	if err := s.orderRepo.SaveHistory(ctx, history); err != nil {
-		return fmt.Errorf("repo.SaveHistory: %w", err)
-	}
 
-	return nil
+	event := domain.NewEvent(
+		domain.EventTypeOrderReturnedToCourier,
+		domain.Actor{
+			Type: domain.ActorTypeSystem,
+			ID:   0,
+		},
+		domain.OrderInfo{
+			ID:     orderID,
+			UserID: order.ReceiverID,
+			Status: "returned_to_courier",
+		},
+	)
+
+	return s.withTransaction(ctx, func(tx *db.Tx) error {
+		if err := updateOrderInTx(ctx, tx, order); err != nil {
+			return fmt.Errorf("update order: %w", err)
+		}
+
+		if err := saveHistoryInTx(ctx, tx, history); err != nil {
+			return fmt.Errorf("save history: %w", err)
+		}
+
+		if err := saveEventInTx(ctx, tx, event); err != nil {
+			return fmt.Errorf("save event: %w", err)
+		}
+
+		return nil
+	})
 }
