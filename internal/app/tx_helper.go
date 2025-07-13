@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
@@ -58,22 +57,6 @@ func saveHistoryInTx(ctx context.Context, tx *db.Tx, h domain.OrderHistory) erro
 	_, err := tx.Exec(ctx, query, h.OrderID, h.Status, h.ChangedAt)
 	if err != nil {
 		return fmt.Errorf("exec insert history: %w", err)
-	}
-	return nil
-}
-
-func saveEventInTx(ctx context.Context, tx *db.Tx, event domain.Event) error {
-	payload, err := json.Marshal(event)
-	if err != nil {
-		return fmt.Errorf("marshal event: %w", err)
-	}
-	const query = `
-        INSERT INTO outbox (id, payload, status, created_at)
-        VALUES (gen_random_uuid(), $1, $2, NOW())
-    `
-	_, err = tx.Exec(ctx, query, payload, domain.OutboxStatusCreated)
-	if err != nil {
-		return fmt.Errorf("save outbox message: %w", err)
 	}
 	return nil
 }

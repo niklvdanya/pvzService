@@ -23,7 +23,7 @@ type OrderRepository interface {
 }
 
 type OutboxRepository interface {
-	Save(ctx context.Context, payload []byte) error
+	Save(ctx context.Context, tx *db.Tx, event domain.Event) error
 }
 
 type PVZService struct {

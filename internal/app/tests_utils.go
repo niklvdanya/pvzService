@@ -39,8 +39,7 @@ func NewEnv(t *testing.T) (*mock.OrderRepositoryMock, *PVZService) {
 	ctrl := minimock.NewController(t)
 	repo := mock.NewOrderRepositoryMock(ctrl)
 	const testWorkerLimit = 8
-	outbox := mock.NewOutboxRepositoryMock(ctrl)
-	svc := &PVZService{orderRepo: repo, outboxRepo: outbox, dbClient: nil, nowFn: func() time.Time { return someConstTime }, workerLimit: testWorkerLimit}
+	svc := &PVZService{orderRepo: repo, dbClient: nil, nowFn: func() time.Time { return someConstTime }, workerLimit: testWorkerLimit}
 	return repo, svc
 }
 

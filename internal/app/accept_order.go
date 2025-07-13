@@ -90,7 +90,7 @@ func (s *PVZService) AcceptOrder(ctx context.Context, req domain.AcceptOrderRequ
 			return fmt.Errorf("save history: %w", err)
 		}
 
-		if err := saveEventInTx(ctx, tx, event); err != nil {
+		if err := s.outboxRepo.Save(ctx, tx, event); err != nil {
 			return fmt.Errorf("save event: %w", err)
 		}
 

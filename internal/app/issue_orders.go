@@ -70,7 +70,7 @@ func (s *PVZService) issueSingle(ctx context.Context, receiverID uint64, orderID
 			return fmt.Errorf("save history: %w", err)
 		}
 
-		if err := saveEventInTx(ctx, tx, event); err != nil {
+		if err := s.outboxRepo.Save(ctx, tx, event); err != nil {
 			return fmt.Errorf("save event: %w", err)
 		}
 

@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -18,12 +19,16 @@ func NewOutboxRepository(client *db.Client) *OutboxRepository {
 	return &OutboxRepository{client: client}
 }
 
-func (r *OutboxRepository) Save(ctx context.Context, payload []byte) error {
+func (r *OutboxRepository) Save(ctx context.Context, tx *db.Tx, event domain.Event) error {
+	payload, err := json.Marshal(event)
+	if err != nil {
+		return fmt.Errorf("marshal event: %w", err)
+	}
 	const query = `
-		INSERT INTO outbox (payload, status, created_at)
-		VALUES ($1, $2, NOW())
-	`
-	_, err := r.client.Exec(ctx, db.ModeWrite, query, payload, domain.OutboxStatusCreated)
+        INSERT INTO outbox (id, payload, status, created_at)
+        VALUES (gen_random_uuid(), $1, $2, NOW())
+    `
+	_, err = tx.Exec(ctx, query, payload, domain.OutboxStatusCreated)
 	if err != nil {
 		return fmt.Errorf("save outbox message: %w", err)
 	}
