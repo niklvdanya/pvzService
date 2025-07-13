@@ -1,4 +1,3 @@
-// internal/repository/postgres/outbox.go (обновленная версия)
 package postgres
 
 import (
@@ -38,7 +37,6 @@ func (r *OutboxRepository) Save(ctx context.Context, tx *db.Tx, event domain.Eve
 	return nil
 }
 
-// GetPendingMessages возвращает сообщения со статусом CREATED, готовые для обработки
 func (r *OutboxRepository) GetPendingMessages(ctx context.Context, limit int) ([]domain.OutboxMessage, error) {
 	const query = `
 		SELECT id, payload, status, error, attempts, created_at, sent_at, last_attempt_at
@@ -58,7 +56,6 @@ func (r *OutboxRepository) GetPendingMessages(ctx context.Context, limit int) ([
 	return r.scanMessages(rows)
 }
 
-// GetProcessingMessages возвращает сообщения со статусом PROCESSING, готовые для отправки
 func (r *OutboxRepository) GetProcessingMessages(ctx context.Context, limit int, now time.Time) ([]domain.OutboxMessage, error) {
 	const query = `
 		SELECT id, payload, status, error, attempts, created_at, sent_at, last_attempt_at
@@ -71,7 +68,6 @@ func (r *OutboxRepository) GetProcessingMessages(ctx context.Context, limit int,
 		FOR UPDATE SKIP LOCKED
 	`
 
-	// Вычисляем время, до которого сообщения могут быть обработаны (с учетом задержки retry)
 	cutoffTime := now.Add(-domain.RetryDelay)
 
 	rows, err := r.client.Query(ctx, query, domain.OutboxStatusProcessing, cutoffTime, domain.MaxRetryAttempts, limit)
@@ -112,13 +108,11 @@ func (r *OutboxRepository) scanMessages(rows *sql.Rows) ([]domain.OutboxMessage,
 	return messages, nil
 }
 
-// SetProcessing переводит сообщения в статус PROCESSING
 func (r *OutboxRepository) SetProcessing(ctx context.Context, ids []uuid.UUID) error {
 	if len(ids) == 0 {
 		return nil
 	}
 
-	// Преобразуем UUID в строки для pq.Array
 	stringIDs := make([]string, len(ids))
 	for i, id := range ids {
 		stringIDs[i] = id.String()
@@ -133,7 +127,6 @@ func (r *OutboxRepository) SetProcessing(ctx context.Context, ids []uuid.UUID) e
 	return nil
 }
 
-// UpdateAttempt обновляет счетчик попыток и время последней попытки
 func (r *OutboxRepository) UpdateAttempt(ctx context.Context, id uuid.UUID, now time.Time) error {
 	const query = `
 		UPDATE outbox 
@@ -154,7 +147,6 @@ func (r *OutboxRepository) UpdateAttempt(ctx context.Context, id uuid.UUID, now 
 	return nil
 }
 
-// UpdateStatus обновляет статус сообщения
 func (r *OutboxRepository) UpdateStatus(ctx context.Context, id uuid.UUID, status domain.OutboxStatus, errorMsg *string) error {
 	var query string
 	var args []interface{}
@@ -183,7 +175,6 @@ func (r *OutboxRepository) UpdateStatus(ctx context.Context, id uuid.UUID, statu
 	return nil
 }
 
-// FailMessage помечает сообщение как FAILED с указанием причины
 func (r *OutboxRepository) FailMessage(ctx context.Context, id uuid.UUID, reason string) error {
 	return r.UpdateStatus(ctx, id, domain.OutboxStatusFailed, &reason)
 }
