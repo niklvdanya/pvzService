@@ -7,6 +7,7 @@ import (
 
 	"github.com/caarlos0/env/v10"
 	"github.com/pkg/errors"
+	"gitlab.ozon.dev/safariproxd/homework/internal/infra"
 	"gopkg.in/yaml.v3"
 )
 
@@ -49,6 +50,7 @@ type Config struct {
 		WorkerInterval time.Duration `yaml:"worker_interval"`
 		BatchSize      int           `yaml:"batch_size"`
 	} `yaml:"outbox"`
+	Telegram infra.TelegramConfig `yaml:"telegram"`
 }
 
 func (c *Config) ReadDSN() string {

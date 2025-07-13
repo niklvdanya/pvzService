@@ -29,3 +29,10 @@ kafka:
 outbox:
   worker_interval: 5s
   batch_size: 100
+
+telegram:
+  bot_token: "API"
+  chat_id: 0
+  enabled: true
+  timeout: 10s
+  retry_attempts: 3
