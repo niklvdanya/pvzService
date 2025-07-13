@@ -63,11 +63,45 @@ const (
 	OutboxStatusFailed     OutboxStatus = "FAILED"
 )
 
+const (
+	MaxRetryAttempts    = 3
+	RetryDelay          = 2 * time.Second
+	NoAttemptsLeftError = "NO_ATTEMPTS_LEFT"
+)
+
 type OutboxMessage struct {
-	ID        uuid.UUID
-	Payload   []byte
-	Status    OutboxStatus
-	Error     *string
-	CreatedAt time.Time
-	SentAt    *time.Time
+	ID            uuid.UUID
+	Payload       []byte
+	Status        OutboxStatus
+	Error         *string
+	Attempts      int
+	CreatedAt     time.Time
+	SentAt        *time.Time
+	LastAttemptAt *time.Time
+}
+
+// CanRetry проверяет, можно ли повторить отправку сообщения
+func (m *OutboxMessage) CanRetry(now time.Time) bool {
+	if m.Attempts >= MaxRetryAttempts {
+		return false
+	}
+
+	// Если это первая попытка
+	if m.LastAttemptAt == nil {
+		return true
+	}
+
+	// Проверяем что прошло достаточно времени с последней попытки
+	return now.Sub(*m.LastAttemptAt) >= RetryDelay
+}
+
+// ShouldFail проверяет, нужно ли пометить сообщение как FAILED
+func (m *OutboxMessage) ShouldFail() bool {
+	return m.Attempts >= MaxRetryAttempts
+}
+
+// IncrementAttempts увеличивает счетчик попыток
+func (m *OutboxMessage) IncrementAttempts(now time.Time) {
+	m.Attempts++
+	m.LastAttemptAt = &now
 }
