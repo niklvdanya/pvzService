@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	_ "github.com/lib/pq"
 	"gitlab.ozon.dev/safariproxd/homework/internal/config"
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
 	"gitlab.ozon.dev/safariproxd/homework/internal/infra"
