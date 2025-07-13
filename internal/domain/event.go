@@ -47,7 +47,7 @@ func NewEvent(eventType EventType, actor Actor, order OrderInfo) Event {
 	return Event{
 		EventID:   uuid.New().String(),
 		EventType: eventType,
-		Timestamp: time.Now().UTC(),
+		Timestamp: time.Now(),
 		Actor:     actor,
 		Order:     order,
 		Source:    "pvz-api",
@@ -80,27 +80,21 @@ type OutboxMessage struct {
 	LastAttemptAt *time.Time
 }
 
-// CanRetry проверяет, можно ли повторить отправку сообщения
 func (m *OutboxMessage) CanRetry(now time.Time) bool {
 	if m.Attempts >= MaxRetryAttempts {
 		return false
 	}
-
-	// Если это первая попытка
 	if m.LastAttemptAt == nil {
 		return true
 	}
 
-	// Проверяем что прошло достаточно времени с последней попытки
 	return now.Sub(*m.LastAttemptAt) >= RetryDelay
 }
 
-// ShouldFail проверяет, нужно ли пометить сообщение как FAILED
 func (m *OutboxMessage) ShouldFail() bool {
 	return m.Attempts >= MaxRetryAttempts
 }
 
-// IncrementAttempts увеличивает счетчик попыток
 func (m *OutboxMessage) IncrementAttempts(now time.Time) {
 	m.Attempts++
 	m.LastAttemptAt = &now

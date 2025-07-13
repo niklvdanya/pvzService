@@ -1,4 +1,3 @@
-// internal/infra/telegram_client.go
 package infra
 
 import (
