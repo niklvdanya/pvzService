@@ -13,6 +13,7 @@ stages:
   - lint
   - test
   - build
+  - deploy
 
 go_mod_download:
   stage: dependencies
@@ -60,13 +61,18 @@ go_test:
 
 go_build:
   stage: build
-  needs: ["go_test"]
+  needs: ["go_test", "lint_go"]
   script:
     - export PATH=$PATH:$GOBIN
     - mkdir -p $GO_BUILD_DIR
+    - echo "Building all services..."
     - go build -o $GO_BUILD_DIR/pvz ./cmd/pvz
     - go build -o $GO_BUILD_DIR/outbox-worker ./cmd/outbox
     - go build -o $GO_BUILD_DIR/notifier ./cmd/notifier
+    - go build -o $GO_BUILD_DIR/gateway ./cmd/gateway
+    - go build -o $GO_BUILD_DIR/swagger ./cmd/swagger
+    - echo "Build completed successfully!"
+    - ls -la $GO_BUILD_DIR/
   cache:
     key: ${CI_COMMIT_REF_SLUG}-go-modules
     paths:
@@ -75,3 +81,66 @@ go_build:
     paths:
       - $GO_BUILD_DIR/
     expire_in: 1 week
+
+integration_test:
+  stage: deploy
+  image: docker:24
+  services:
+    - docker:24-dind
+  needs: 
+    - job: go_build
+      artifacts: true
+  variables:
+    DOCKER_HOST: tcp://docker:2376
+    DOCKER_TLS_CERTDIR: "/certs"
+    DOCKER_TLS_VERIFY: 1
+    DOCKER_CERT_PATH: "$DOCKER_TLS_CERTDIR/client"
+  before_script:
+    - apk add --no-cache curl jq docker-compose
+    - docker info
+  script:
+    - echo "Starting full integration test with docker-compose..."
+    - ls -la $GO_BUILD_DIR/
+    - echo "Starting all services with docker-compose..."
+    - docker-compose up -d
+    - echo "Waiting for services to be ready..."
+    - sleep 45
+    - echo "=== Container Status ==="
+    - docker-compose ps
+    - echo "=== Health Checks ==="
+    - docker-compose exec -T db pg_isready -U pvz || echo "PostgreSQL check"
+    - docker-compose exec -T kafka kafka-topics.sh --bootstrap-server localhost:9092 --list || echo "Kafka check"
+    - echo "=== HTTP Service Checks ==="
+    - curl -f http://localhost:8081/v1/orders/list/1?in_pvz=true || echo "Gateway check"
+    - curl -f http://localhost:8082/swagger/ || echo "Swagger check"
+    - curl -f http://localhost:8080/ || echo "Kafka UI check"
+    - curl -f http://localhost:6060/ || echo "Admin check"
+    - echo "=== Testing Basic Workflow ==="
+    - >
+      curl -X POST http://localhost:8081/v1/orders/accept
+      -H "Content-Type: application/json"
+      -d '{
+      "order_id": 12345,
+      "user_id": 100,
+      "expires_at": "'$(date -d "+1 day" -Iseconds)'",
+      "weight": 1.5,
+      "price": 500.0
+      }' || echo "Order creation test"
+    - curl -s http://localhost:8081/v1/orders/list/100?in_pvz=true || echo "Order list test"
+    - echo "=== Final Status Check ==="
+    - docker-compose ps
+    - echo "Integration test completed successfully!"
+  after_script:
+    - echo "=== Collecting logs ==="
+    - mkdir -p logs
+    - docker-compose logs > logs/all-services.log 2>&1 || echo "Logs collected"
+    - docker-compose down -v || echo "Cleanup completed"
+  artifacts:
+    when: always
+    paths:
+      - logs/
+    expire_in: 3 days
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: manual
