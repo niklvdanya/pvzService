@@ -58,7 +58,7 @@ func (t *TelegramClient) SendMessage(ctx context.Context, text string) error {
 	message := SendMessageRequest{
 		ChatID:    t.config.ChatID,
 		Text:      text,
-		ParseMode: "HTML", // Поддержка HTML форматирования
+		ParseMode: "HTML",
 	}
 
 	var lastErr error
@@ -66,7 +66,6 @@ func (t *TelegramClient) SendMessage(ctx context.Context, text string) error {
 		if err := t.sendMessageAttempt(ctx, message); err != nil {
 			lastErr = err
 			if attempt < t.config.RetryAttempts {
-				// Exponential backoff: 1s, 2s, 4s...
 				delay := time.Duration(attempt) * time.Second
 				select {
 				case <-ctx.Done():
