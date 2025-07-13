@@ -2,7 +2,7 @@
 CREATE TYPE outbox_status AS ENUM ('CREATED', 'PROCESSING', 'COMPLETED', 'FAILED');
 
 CREATE TABLE outbox (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID PRIMARY KEY,
     payload JSONB NOT NULL,
     status outbox_status NOT NULL,
     error TEXT,
