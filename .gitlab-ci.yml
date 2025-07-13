@@ -13,7 +13,7 @@ stages:
   - lint
   - test
   - build
-  - deploy
+  - integration
 
 go_mod_download:
   stage: dependencies
@@ -34,13 +34,20 @@ lint_go:
   needs: ["go_mod_download"]
   script:
     - export PATH=$PATH:$GOBIN
-    - go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-    - golangci-lint run
+    - go install github.com/golangci/golangci-lint/cmd/golangci-lint@$GOLANGCI_LINT_VERSION || { echo "Failed to install golangci-lint"; exit 1; }
+    - golangci-lint version || { echo "Failed to run golangci-lint version"; exit 1; }
+    - golangci-lint run --out-format=code-climate > codequality.json || { echo "Failed to run golangci-lint"; exit 1; }
   cache:
     key: ${CI_COMMIT_REF_SLUG}-go-modules
     paths:
       - $GO_CACHE
       - $GOBIN
+  artifacts:
+    paths:
+      - codequality.json
+    reports:
+      codequality: codequality.json
+    expire_in: 1 week
 
 go_test:
   stage: test
@@ -83,11 +90,11 @@ go_build:
     expire_in: 1 week
 
 integration_test:
-  stage: deploy
+  stage: integration
   image: docker:24
   services:
     - docker:24-dind
-  needs: 
+  needs:
     - job: go_build
       artifacts: true
   variables:
@@ -108,13 +115,13 @@ integration_test:
     - echo "=== Container Status ==="
     - docker-compose ps
     - echo "=== Health Checks ==="
-    - docker-compose exec -T db pg_isready -U pvz || echo "PostgreSQL check"
-    - docker-compose exec -T kafka kafka-topics.sh --bootstrap-server localhost:9092 --list || echo "Kafka check"
+    - docker-compose exec -T db pg_isready -U pvz || echo "PostgreSQL check failed"
+    - docker-compose exec -T kafka kafka-topics.sh --bootstrap-server localhost:9092 --list || echo "Kafka check failed"
     - echo "=== HTTP Service Checks ==="
-    - curl -f http://localhost:8081/v1/orders/list/1?in_pvz=true || echo "Gateway check"
-    - curl -f http://localhost:8082/swagger/ || echo "Swagger check"
-    - curl -f http://localhost:8080/ || echo "Kafka UI check"
-    - curl -f http://localhost:6060/ || echo "Admin check"
+    - curl -f http://localhost:8081/v1/orders/list/1?in_pvz=true || echo "Gateway check failed"
+    - curl -f http://localhost:8082/swagger/ || echo "Swagger check failed"
+    - curl -f http://localhost:8080/ || echo "Kafka UI check failed"
+    - curl -f http://localhost:6060/ || echo "Admin check failed"
     - echo "=== Testing Basic Workflow ==="
     - >
       curl -X POST http://localhost:8081/v1/orders/accept
@@ -125,16 +132,16 @@ integration_test:
       "expires_at": "'$(date -d "+1 day" -Iseconds)'",
       "weight": 1.5,
       "price": 500.0
-      }' || echo "Order creation test"
-    - curl -s http://localhost:8081/v1/orders/list/100?in_pvz=true || echo "Order list test"
+      }' || echo "Order creation test failed"
+    - curl -s http://localhost:8081/v1/orders/list/100?in_pvz=true || echo "Order list test failed"
     - echo "=== Final Status Check ==="
     - docker-compose ps
     - echo "Integration test completed successfully!"
   after_script:
     - echo "=== Collecting logs ==="
     - mkdir -p logs
-    - docker-compose logs > logs/all-services.log 2>&1 || echo "Logs collected"
-    - docker-compose down -v || echo "Cleanup completed"
+    - docker-compose logs > logs/all-services.log 2>&1 || echo "Logs collection failed"
+    - docker-compose down -v || echo "Cleanup failed"
   artifacts:
     when: always
     paths:
