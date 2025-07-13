@@ -32,7 +32,7 @@ func (s *NotifierService) Start(ctx context.Context) error {
 	return nil
 }
 
-func (s *NotifierService) Shutdown(ctx context.Context) error {
+func (s *NotifierService) Shutdown(_ context.Context) error {
 	slog.Info("Shutting down notifier service...")
 
 	if err := s.consumer.Close(); err != nil {

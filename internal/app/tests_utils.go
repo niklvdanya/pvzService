@@ -24,7 +24,7 @@ func Stored(id uint64, status domain.OrderStatus) domain.Order {
 		ReceiverID:     someRecieverID,
 		StorageUntil:   someConstTime.Add(24 * time.Hour),
 		Status:         status,
-		LastUpdateTime: someConstTime.Add(time.Duration(id) * time.Minute),
+		LastUpdateTime: someConstTime.Add(time.Duration(int64(id)) * time.Minute),
 	}
 }
 

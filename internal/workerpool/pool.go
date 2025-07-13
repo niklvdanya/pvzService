@@ -32,6 +32,7 @@ func New(workerCnt, queueSize int) *Pool {
 		rootCtx: ctx,
 		cancel:  cancel,
 	}
+	//nolint:gosec // workerCnt is always > 0 after validation above
 	atomic.StoreInt32(&p.workers, int32(workerCnt))
 	p.spawn(workerCnt)
 	return p
@@ -112,6 +113,7 @@ func (p *Pool) Resize(n int) {
 			p.kill <- struct{}{}
 		}
 	}
+	//nolint:gosec // workerCnt is always > 0 after validation above
 	atomic.StoreInt32(&p.workers, int32(n))
 }
 

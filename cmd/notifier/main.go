@@ -82,7 +82,7 @@ func main() {
 	case sig := <-sigChan:
 		slog.Info("Received shutdown signal", "signal", sig)
 	case <-ctx.Done():
-		slog.Info("Context cancelled")
+		slog.Info("Context canceled")
 	}
 
 	slog.Info("Shutting down notifier service...")

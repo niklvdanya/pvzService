@@ -75,7 +75,11 @@ func (c *Client) Close() error {
 	}
 	if c.writeDB != nil {
 		if closeErr := c.writeDB.Close(); closeErr != nil {
-			err = fmt.Errorf("%v; failed to close write DB: %w", err, closeErr)
+			if err != nil {
+				err = fmt.Errorf("%v; failed to close write DB: %w", err, closeErr)
+			} else {
+				err = fmt.Errorf("failed to close write DB: %w", closeErr)
+			}
 		}
 	}
 	return err

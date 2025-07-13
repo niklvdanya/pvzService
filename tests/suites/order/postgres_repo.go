@@ -71,7 +71,7 @@ func (s *OrderRepositorySuite) SetupSuite() {
 	s.sqlDB = sqlDB
 	require.Eventually(s.T(), func() bool { return sqlDB.PingContext(s.ctx) == nil }, 10*time.Second, time.Second)
 
-	goose.SetDialect("postgres")
+	_ = goose.SetDialect("postgres")
 	root, err := filepath.Abs(filepath.Join("..", ".."))
 	require.NoError(s.T(), err)
 

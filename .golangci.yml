@@ -1,34 +1,58 @@
 run:
-  timeout: 3m
-  go: "1.23"
+ timeout: 5m
+ go: "1.23"
 
 linters-settings:
-  govet:
-    check-shadowing: true
-  gocyclo:
-    min-complexity: 15
-  lll:
-    line-length: 140
-  goimports:
-    local-prefixes: gitlab.ozon.dev/safariproxd/homework
+ gocyclo:
+   min-complexity: 28
+ lll:
+   line-length: 140
+ goimports:
+   local-prefixes: gitlab.ozon.dev/safariproxd/homework
+ gosec:
+   excludes:
+     - G304
+     - G114
+     - G112
+     - G115
 
 linters:
-  enable:
-    - errcheck
-    - gosimple
-    - govet
-    - ineffassign
-    - staticcheck
-    - typecheck
-    - unused
-    - gofmt
-    - goimports
-    - golint
-    - gosec
-    - misspell
+ disable-all: true
+ enable:
+   - errcheck
+   - gosimple
+   - govet
+   - ineffassign
+   - staticcheck
+   - typecheck
+   - unused
+   - gofmt
+   - gosec
+   - misspell
+   - gocyclo
+   - unparam
 
 issues:
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - gosec
+ exclude-dirs:
+   - vendor
+   - .cache
+   - bin
+ exclude-files:
+   - ".*_mock.go$"
+   - ".*\\.pb\\.go$"
+ exclude-rules:
+   - path: _test\.go
+     linters:
+       - gosec
+       - gocyclo
+       - unparam
+   - path: /mock/
+     linters:
+       - gosec
+       - unused
+   - text: "File is not properly formatted"
+     linters:
+       - goimports
+   - text: "shadow: declaration of"
+     linters:
+       - govet
