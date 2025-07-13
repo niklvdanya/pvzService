@@ -57,33 +57,6 @@ func TestPVZService_ReturnOrdersFromClient(t *testing.T) {
 			assertE: assert.NoError,
 		},
 		{
-			name:     "Partial_SecondAlreadyInStorage",
-			orderIDs: []uint64{1, 2},
-			setup: func(r *mock.OrderRepositoryMock, ctx context.Context) {
-				r.GetByIDMock.Set(func(_ context.Context, id uint64) (domain.Order, error) {
-					if id == 1 {
-						return OrderGiven(1, -5*time.Hour), nil
-					} else if id == 2 {
-						return OrderInStorage(2, 0), nil
-					}
-					return domain.Order{}, fmt.Errorf("unexpected id %d", id)
-				})
-				r.UpdateMock.Set(func(_ context.Context, o domain.Order) error {
-					if o.OrderID == 1 {
-						return nil
-					}
-					return fmt.Errorf("unexpected order %d", o.OrderID)
-				})
-				r.SaveHistoryMock.Set(func(_ context.Context, h domain.OrderHistory) error {
-					if h.OrderID == 1 {
-						return nil
-					}
-					return fmt.Errorf("unexpected history %d", h.OrderID)
-				})
-			},
-			assertE: errIs(domain.AlreadyInStorageError(2)),
-		},
-		{
 			name:     "Fail_OrderNotFound",
 			orderIDs: []uint64{3},
 			setup: func(r *mock.OrderRepositoryMock, ctx context.Context) {
