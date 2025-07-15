@@ -10,16 +10,16 @@ import (
 
 	"github.com/IBM/sarama"
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
-	"gitlab.ozon.dev/safariproxd/homework/internal/infra"
+	"gitlab.ozon.dev/safariproxd/homework/internal/infra/telegram"
 )
 
 type EventHandler struct {
 	processedCount    uint64
-	telegramNotifier  *infra.TelegramNotifier
+	telegramNotifier  *telegram.TelegramNotifier
 	lastStatisticTime time.Time
 }
 
-func NewEventHandler(telegramNotifier *infra.TelegramNotifier) *EventHandler {
+func NewEventHandler(telegramNotifier *telegram.TelegramNotifier) *EventHandler {
 	return &EventHandler{
 		telegramNotifier:  telegramNotifier,
 		lastStatisticTime: time.Now(),

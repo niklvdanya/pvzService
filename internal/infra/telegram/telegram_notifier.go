@@ -1,4 +1,4 @@
-package infra
+package telegram
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 )
 
 type TelegramNotifier struct {
-	client    *TelegramClient
+	client    *telegramClient
 	formatter *MessageFormatter
 }
 
@@ -18,7 +18,7 @@ type MessageFormatter struct {
 	timeZone *time.Location
 }
 
-func NewTelegramNotifier(client *TelegramClient) *TelegramNotifier {
+func NewTelegramNotifier(client *telegramClient) *TelegramNotifier {
 	timezone, _ := time.LoadLocation("UTC")
 
 	return &TelegramNotifier{

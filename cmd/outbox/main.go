@@ -10,7 +10,7 @@ import (
 	_ "github.com/lib/pq"
 	"gitlab.ozon.dev/safariproxd/homework/internal/config"
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
-	"gitlab.ozon.dev/safariproxd/homework/internal/infra"
+	"gitlab.ozon.dev/safariproxd/homework/internal/infra/kafka"
 	"gitlab.ozon.dev/safariproxd/homework/internal/repository/postgres"
 	"gitlab.ozon.dev/safariproxd/homework/pkg/db"
 )
@@ -36,7 +36,7 @@ func main() {
 	defer dbClient.Close()
 
 	outboxRepo := postgres.NewOutboxRepository(dbClient)
-	kafkaProducer, err := infra.NewKafkaProducer(cfg.Kafka.Brokers, cfg.Kafka.Topic)
+	kafkaProducer, err := kafka.NewKafkaProducer(cfg.Kafka.Brokers, cfg.Kafka.Topic)
 	if err != nil {
 		slog.Error("Kafka producer creation failed", "error", err)
 		os.Exit(1)
@@ -62,11 +62,11 @@ func main() {
 
 type TwoPhaseOutboxWorker struct {
 	repo      *postgres.OutboxRepository
-	producer  *infra.KafkaProducer
+	producer  *kafka.KafkaProducer
 	batchSize int
 }
 
-func NewTwoPhaseOutboxWorker(repo *postgres.OutboxRepository, producer *infra.KafkaProducer, batchSize int) *TwoPhaseOutboxWorker {
+func NewTwoPhaseOutboxWorker(repo *postgres.OutboxRepository, producer *kafka.KafkaProducer, batchSize int) *TwoPhaseOutboxWorker {
 	return &TwoPhaseOutboxWorker{
 		repo:      repo,
 		producer:  producer,

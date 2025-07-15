@@ -15,7 +15,7 @@ import (
 	"github.com/testcontainers/testcontainers-go/modules/kafka"
 
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
-	"gitlab.ozon.dev/safariproxd/homework/internal/infra"
+	kf "gitlab.ozon.dev/safariproxd/homework/internal/infra/kafka"
 )
 
 type KafkaIntegrationSuite struct {
@@ -91,13 +91,13 @@ func (s *KafkaIntegrationSuite) Test_ProducerConsumer_SingleMessage() {
 
 	s.createTopic(topic)
 
-	consumerCfg := infra.KafkaConsumerConfig{
+	consumerCfg := kf.KafkaConsumerConfig{
 		Brokers:         s.brokers,
 		Topic:           topic,
 		ConsumerGroup:   "test-group-single-" + strings.ReplaceAll(s.T().Name(), "/", "_"),
 		AutoOffsetReset: "earliest",
 	}
-	consumer, err := infra.NewKafkaConsumer(consumerCfg)
+	consumer, err := kf.NewKafkaConsumer(consumerCfg)
 	require.NoError(s.T(), err)
 	defer consumer.Close()
 
@@ -119,7 +119,7 @@ func (s *KafkaIntegrationSuite) Test_ProducerConsumer_SingleMessage() {
 
 	time.Sleep(5 * time.Second)
 
-	producer, err := infra.NewKafkaProducer(s.brokers, topic)
+	producer, err := kf.NewKafkaProducer(s.brokers, topic)
 	require.NoError(s.T(), err)
 	defer producer.Close()
 
@@ -170,13 +170,13 @@ func (s *KafkaIntegrationSuite) Test_ProducerConsumer_MultipleMessages() {
 
 	s.createTopic(topic)
 
-	consumerCfg := infra.KafkaConsumerConfig{
+	consumerCfg := kf.KafkaConsumerConfig{
 		Brokers:         s.brokers,
 		Topic:           topic,
 		ConsumerGroup:   "test-group-multiple-" + strings.ReplaceAll(s.T().Name(), "/", "_"),
 		AutoOffsetReset: "earliest",
 	}
-	consumer, err := infra.NewKafkaConsumer(consumerCfg)
+	consumer, err := kf.NewKafkaConsumer(consumerCfg)
 	require.NoError(s.T(), err)
 
 	receivedEvents := make(chan domain.Event, 10)
@@ -197,7 +197,7 @@ func (s *KafkaIntegrationSuite) Test_ProducerConsumer_MultipleMessages() {
 
 	time.Sleep(5 * time.Second)
 
-	producer, err := infra.NewKafkaProducer(s.brokers, topic)
+	producer, err := kf.NewKafkaProducer(s.brokers, topic)
 	require.NoError(s.T(), err)
 	defer producer.Close()
 
@@ -259,17 +259,17 @@ func (s *KafkaIntegrationSuite) Test_ConsumerGroup_Rebalance() {
 	topic := "test-events-rebalance-" + strings.ReplaceAll(s.T().Name(), "/", "_")
 
 	s.createTopic(topic)
-	consumerCfg := infra.KafkaConsumerConfig{
+	consumerCfg := kf.KafkaConsumerConfig{
 		Brokers:         s.brokers,
 		Topic:           topic,
 		ConsumerGroup:   "test-group-rebalance-" + strings.ReplaceAll(s.T().Name(), "/", "_"),
 		AutoOffsetReset: "earliest",
 	}
 
-	consumer1, err := infra.NewKafkaConsumer(consumerCfg)
+	consumer1, err := kf.NewKafkaConsumer(consumerCfg)
 	require.NoError(s.T(), err)
 
-	consumer2, err := infra.NewKafkaConsumer(consumerCfg)
+	consumer2, err := kf.NewKafkaConsumer(consumerCfg)
 	require.NoError(s.T(), err)
 
 	var wg sync.WaitGroup
@@ -305,7 +305,7 @@ func (s *KafkaIntegrationSuite) Test_ConsumerGroup_Rebalance() {
 
 	time.Sleep(5 * time.Second)
 
-	producer, err := infra.NewKafkaProducer(s.brokers, topic)
+	producer, err := kf.NewKafkaProducer(s.brokers, topic)
 	require.NoError(s.T(), err)
 	defer producer.Close()
 

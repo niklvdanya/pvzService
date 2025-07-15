@@ -10,7 +10,8 @@ import (
 	"time"
 
 	"gitlab.ozon.dev/safariproxd/homework/internal/config"
-	"gitlab.ozon.dev/safariproxd/homework/internal/infra"
+	"gitlab.ozon.dev/safariproxd/homework/internal/infra/kafka"
+	"gitlab.ozon.dev/safariproxd/homework/internal/infra/telegram"
 )
 
 func main() {
@@ -20,8 +21,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	telegramClient := infra.NewTelegramClient(cfg.Telegram)
-	telegramNotifier := infra.NewTelegramNotifier(telegramClient)
+	telegramClient := telegram.NewTelegramClient(cfg.Telegram)
+	telegramNotifier := telegram.NewTelegramNotifier(telegramClient)
 
 	if !telegramClient.IsEnabled() {
 		slog.Warn("Telegram notifications disabled",
@@ -32,14 +33,14 @@ func main() {
 			"chat_id", cfg.Telegram.ChatID)
 	}
 
-	consumerConfig := infra.KafkaConsumerConfig{
+	consumerConfig := kafka.KafkaConsumerConfig{
 		Brokers:         cfg.Kafka.Brokers,
 		Topic:           cfg.Kafka.Topic,
 		ConsumerGroup:   "pvz-notifier",
 		AutoOffsetReset: "earliest",
 	}
 
-	consumer, err := infra.NewKafkaConsumer(consumerConfig)
+	consumer, err := kafka.NewKafkaConsumer(consumerConfig)
 	if err != nil {
 		slog.Error("Failed to create Kafka consumer", "error", err)
 		os.Exit(1)

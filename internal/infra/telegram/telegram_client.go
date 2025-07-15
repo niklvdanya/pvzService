@@ -1,4 +1,4 @@
-package infra
+package telegram
 
 import (
 	"bytes"
@@ -18,7 +18,7 @@ type TelegramConfig struct {
 	RetryAttempts int           `yaml:"retry_attempts"`
 }
 
-type TelegramClient struct {
+type telegramClient struct {
 	config TelegramConfig
 	client *http.Client
 	apiURL string
@@ -36,8 +36,8 @@ type TelegramResponse struct {
 	ErrorCode   int    `json:"error_code,omitempty"`
 }
 
-func NewTelegramClient(config TelegramConfig) *TelegramClient {
-	return &TelegramClient{
+func NewTelegramClient(config TelegramConfig) *telegramClient {
+	return &telegramClient{
 		config: config,
 		client: &http.Client{
 			Timeout: config.Timeout,
@@ -46,15 +46,7 @@ func NewTelegramClient(config TelegramConfig) *TelegramClient {
 	}
 }
 
-func (t *TelegramClient) SendMessage(ctx context.Context, text string) error {
-	if !t.config.Enabled {
-		return fmt.Errorf("telegram client is disabled")
-	}
-
-	if t.config.ChatID == 0 {
-		return fmt.Errorf("telegram chat_id is not configured")
-	}
-
+func (t *telegramClient) SendMessage(ctx context.Context, text string) error {
 	message := SendMessageRequest{
 		ChatID:    t.config.ChatID,
 		Text:      text,
@@ -83,7 +75,7 @@ func (t *TelegramClient) SendMessage(ctx context.Context, text string) error {
 		t.config.RetryAttempts, lastErr)
 }
 
-func (t *TelegramClient) sendMessageAttempt(ctx context.Context, message SendMessageRequest) error {
+func (t *telegramClient) sendMessageAttempt(ctx context.Context, message SendMessageRequest) error {
 	jsonData, err := json.Marshal(message)
 	if err != nil {
 		return fmt.Errorf("marshal request: %w", err)
@@ -119,6 +111,6 @@ func (t *TelegramClient) sendMessageAttempt(ctx context.Context, message SendMes
 	return nil
 }
 
-func (t *TelegramClient) IsEnabled() bool {
+func (t *telegramClient) IsEnabled() bool {
 	return t.config.Enabled && t.config.ChatID != 0 && t.config.BotToken != ""
 }

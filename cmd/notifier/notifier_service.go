@@ -5,16 +5,16 @@ import (
 	"fmt"
 	"log/slog"
 
-	"gitlab.ozon.dev/safariproxd/homework/internal/infra"
+	"gitlab.ozon.dev/safariproxd/homework/internal/infra/kafka"
 )
 
 type NotifierService struct {
-	consumer *infra.KafkaConsumer
+	consumer *kafka.KafkaConsumer
 	handler  *EventHandler
 	done     chan struct{}
 }
 
-func NewNotifierService(consumer *infra.KafkaConsumer, handler *EventHandler) *NotifierService {
+func NewNotifierService(consumer *kafka.KafkaConsumer, handler *EventHandler) *NotifierService {
 	return &NotifierService{
 		consumer: consumer,
 		handler:  handler,
