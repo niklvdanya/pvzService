@@ -7,6 +7,7 @@ import (
 
 	"github.com/caarlos0/env/v10"
 	"github.com/pkg/errors"
+	"gitlab.ozon.dev/safariproxd/homework/internal/infra/telegram"
 	"gopkg.in/yaml.v3"
 )
 
@@ -35,6 +36,21 @@ type Config struct {
 		} `yaml:"pool"`
 		MigrationsDir string `yaml:"migrations_dir"`
 	} `yaml:"db"`
+
+	Kafka struct {
+		Brokers  []string `yaml:"brokers"`
+		Topic    string   `yaml:"topic"`
+		Producer struct {
+			Timeout time.Duration `yaml:"timeout"`
+			Retries int           `yaml:"retries"`
+		} `yaml:"producer"`
+	} `yaml:"kafka"`
+
+	Outbox struct {
+		WorkerInterval time.Duration `yaml:"worker_interval"`
+		BatchSize      int           `yaml:"batch_size"`
+	} `yaml:"outbox"`
+	Telegram telegram.TelegramConfig `yaml:"telegram"`
 }
 
 func (c *Config) ReadDSN() string {

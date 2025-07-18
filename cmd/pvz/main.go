@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	_ "github.com/lib/pq"
 	"github.com/ulule/limiter/v3"
 	"github.com/ulule/limiter/v3/drivers/store/memory"
 	server "gitlab.ozon.dev/safariproxd/homework/internal/adapter/grpc"
@@ -41,7 +42,8 @@ func main() {
 	}
 	defer client.Close()
 	orderRepo := postgres.NewOrderRepository(client)
-	pvzService := app.NewPVZService(orderRepo, time.Now, cfg.Service.WorkerLimit)
+	outboxRepo := postgres.NewOutboxRepository(client)
+	pvzService := app.NewPVZService(orderRepo, outboxRepo, client, time.Now, cfg.Service.WorkerLimit)
 
 	pool := workerpool.New(cfg.Service.WorkerLimit, cfg.Service.QueueSize)
 

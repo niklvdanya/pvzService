@@ -92,7 +92,7 @@ func setupEnv(t *testing.T) *testEnv {
 	require.NoError(t, err)
 	require.Eventually(t, func() bool { return sqlDB.PingContext(ctx) == nil }, 15*time.Second, time.Second)
 
-	goose.SetDialect("postgres")
+	_ = goose.SetDialect("postgres")
 	repoRoot, err := filepath.Abs(filepath.Join("..", ".."))
 	require.NoError(t, err)
 	migrationsDir := filepath.Join(repoRoot, "migrations")
@@ -103,7 +103,8 @@ func setupEnv(t *testing.T) *testEnv {
 	require.NoError(t, err)
 
 	repo := postgres.NewOrderRepository(dbClient)
-	svc := app.NewPVZService(repo, time.Now, 16)
+	outbox := postgres.NewOutboxRepository(dbClient)
+	svc := app.NewPVZService(repo, outbox, dbClient, time.Now, 16)
 
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)

@@ -17,3 +17,22 @@ db:
     max_open: 20
     max_idle: 10
   migrations_dir: migrations
+
+kafka:
+  brokers:
+    - kafka:29092
+  topic: pvz.events-log
+  producer:
+    timeout: 10s
+    retries: 3
+
+outbox:
+  worker_interval: 5s
+  batch_size: 100
+
+telegram:
+  bot_token: "API"
+  chat_id: 0 // получать через @userinfobot
+  enabled: true
+  timeout: 10s
+  retry_attempts: 3

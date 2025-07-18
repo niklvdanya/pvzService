@@ -24,7 +24,7 @@ func Stored(id uint64, status domain.OrderStatus) domain.Order {
 		ReceiverID:     someRecieverID,
 		StorageUntil:   someConstTime.Add(24 * time.Hour),
 		Status:         status,
-		LastUpdateTime: someConstTime.Add(time.Duration(id) * time.Minute),
+		LastUpdateTime: someConstTime.Add(time.Duration(int64(id)) * time.Minute),
 	}
 }
 
@@ -39,7 +39,7 @@ func NewEnv(t *testing.T) (*mock.OrderRepositoryMock, *PVZService) {
 	ctrl := minimock.NewController(t)
 	repo := mock.NewOrderRepositoryMock(ctrl)
 	const testWorkerLimit = 8
-	svc := &PVZService{orderRepo: repo, nowFn: func() time.Time { return someConstTime }, workerLimit: testWorkerLimit}
+	svc := &PVZService{orderRepo: repo, dbClient: nil, nowFn: func() time.Time { return someConstTime }, workerLimit: testWorkerLimit}
 	return repo, svc
 }
 

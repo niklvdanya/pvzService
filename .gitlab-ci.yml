@@ -1,0 +1,88 @@
+image: golang:1.23
+variables:
+  GOPATH: $CI_PROJECT_DIR/.go
+  GOBIN: $CI_PROJECT_DIR/.go/bin
+  GO_CACHE: $CI_PROJECT_DIR/.go/cache
+  GOLANGCI_LINT_VERSION: v1.61.0
+  GO_BUILD_DIR: $CI_PROJECT_DIR/build
+  GO_COVER_PACKAGES: "./..."
+
+stages:
+  - dependencies
+  - lint
+  - test
+  - build
+
+go_mod_download:
+  stage: dependencies
+  script:
+    - go mod download
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}-go-modules
+    paths:
+      - $GO_CACHE
+  artifacts:
+    paths:
+      - go.mod
+      - go.sum
+    expire_in: 1 week
+
+lint_go:
+  stage: lint
+  needs: ["go_mod_download"]
+  script:
+    - export PATH=$PATH:$GOBIN
+    - go install github.com/golangci/golangci-lint/cmd/golangci-lint@$GOLANGCI_LINT_VERSION || { echo "Failed to install golangci-lint"; exit 1; }
+    - golangci-lint version || { echo "Failed to run golangci-lint version"; exit 1; }
+    - golangci-lint run --out-format=code-climate > codequality.json || { echo "Failed to run golangci-lint"; exit 1; }
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}-go-modules
+    paths:
+      - $GO_CACHE
+      - $GOBIN
+  artifacts:
+    paths:
+      - codequality.json
+    reports:
+      codequality: codequality.json
+    expire_in: 1 week
+
+go_test:
+  stage: test
+  needs: ["go_mod_download"]
+  script:
+    - export PATH=$PATH:$GOBIN
+    - go test -v -cover -coverpkg=$GO_COVER_PACKAGES ./... -coverprofile=coverage.out
+    - go tool cover -html=coverage.out -o coverage.html
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}-go-modules
+    paths:
+      - $GO_CACHE
+  artifacts:
+    paths:
+      - coverage.out
+      - coverage.html
+    expire_in: 1 week
+
+go_build:
+  stage: build
+  needs: ["go_test", "lint_go"]
+  script:
+    - export PATH=$PATH:$GOBIN
+    - mkdir -p $GO_BUILD_DIR
+    - echo "Building all services..."
+    - go build -o $GO_BUILD_DIR/pvz ./cmd/pvz
+    - go build -o $GO_BUILD_DIR/outbox-worker ./cmd/outbox
+    - go build -o $GO_BUILD_DIR/notifier ./cmd/notifier
+    - go build -o $GO_BUILD_DIR/gateway ./cmd/gateway
+    - go build -o $GO_BUILD_DIR/swagger ./cmd/swagger
+    - echo "Build completed successfully!"
+    - ls -la $GO_BUILD_DIR/
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}-go-modules
+    paths:
+      - $GO_CACHE
+  artifacts:
+    paths:
+      - $GO_BUILD_DIR/
+    expire_in: 1 week

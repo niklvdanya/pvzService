@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"time"
 
 	"gitlab.ozon.dev/safariproxd/homework/internal/workerpool"
 )
@@ -17,8 +18,14 @@ type AdminServer struct {
 
 func NewAdmin(addr string, pool *workerpool.Pool) *AdminServer {
 	mux := http.NewServeMux()
-	as := &AdminServer{srv: &http.Server{Addr: addr, Handler: mux}, pool: pool}
-
+	server := &http.Server{
+		Addr:              addr,
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      10 * time.Second,
+	}
+	as := &AdminServer{srv: server, pool: pool}
 	mux.HandleFunc("/resize", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "use POST", http.StatusMethodNotAllowed)
