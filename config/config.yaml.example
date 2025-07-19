@@ -18,6 +18,13 @@ db:
     max_idle: 10
   migrations_dir: migrations
 
+# Настройки кеширования
+cache:
+  enabled: true
+  max_size: 1000
+  ttl: 5m
+  cleanup_interval: 10m
+
 kafka:
   brokers:
     - kafka:29092

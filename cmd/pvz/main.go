@@ -17,6 +17,7 @@ import (
 	"gitlab.ozon.dev/safariproxd/homework/internal/infra"
 	"gitlab.ozon.dev/safariproxd/homework/internal/repository/postgres"
 	"gitlab.ozon.dev/safariproxd/homework/internal/workerpool"
+	"gitlab.ozon.dev/safariproxd/homework/pkg/cache"
 	"gitlab.ozon.dev/safariproxd/homework/pkg/db"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
@@ -41,8 +42,41 @@ func main() {
 		os.Exit(1)
 	}
 	defer client.Close()
-	orderRepo := postgres.NewOrderRepository(client)
-	outboxRepo := postgres.NewOutboxRepository(client)
+
+	var orderRepo app.OrderRepository
+	var outboxRepo app.OutboxRepository
+	var cacheManager infra.CacheManager
+
+	if cfg.Cache.Enabled {
+		cacheConfig := cache.Config{
+			MaxSize: cfg.Cache.MaxSize,
+			TTL:     cfg.Cache.TTL,
+		}
+
+		cachedRepo := postgres.NewCachedOrderRepository(client, cacheConfig)
+		orderRepo = cachedRepo
+		cacheManager = cachedRepo
+
+		go func() {
+			ticker := time.NewTicker(cfg.Cache.CleanupInterval)
+			defer ticker.Stop()
+
+			for range ticker.C {
+				cachedRepo.CleanupExpired()
+				slog.Debug("Cache cleanup completed", "stats", cachedRepo.GetCacheStats())
+			}
+		}()
+
+		slog.Info("Cache enabled",
+			"max_size", cfg.Cache.MaxSize,
+			"ttl", cfg.Cache.TTL,
+			"cleanup_interval", cfg.Cache.CleanupInterval)
+	} else {
+		orderRepo = postgres.NewOrderRepository(client)
+		slog.Info("Cache disabled")
+	}
+
+	outboxRepo = postgres.NewOutboxRepository(client)
 	pvzService := app.NewPVZService(orderRepo, outboxRepo, client, time.Now, cfg.Service.WorkerLimit)
 
 	pool := workerpool.New(cfg.Service.WorkerLimit, cfg.Service.QueueSize)
@@ -77,11 +111,15 @@ func main() {
 		}
 	}()
 
-	admin := infra.NewAdmin(cfg.Service.AdminAddress, pool)
+	admin := infra.NewAdmin(cfg.Service.AdminAddress, pool, cacheManager)
 	admin.Start()
 	slog.Info("admin HTTP listening", "addr", cfg.Service.AdminAddress)
+
 	// curl -XPOST 'http://localhost:6060/resize?workers=11'
-	// реализовал через http запросы, возможно надо было добавлять grpc ручку
+	// curl -XGET 'http://localhost:6060/cache/stats'
+	// curl -XPOST 'http://localhost:6060/cache/clear'
+	// curl -XPOST 'http://localhost:6060/cache/cleanup'
+
 	infra.Graceful(
 		func(ctx context.Context) { grpcServer.GracefulStop() },
 		admin.Shutdown,

@@ -37,6 +37,13 @@ type Config struct {
 		MigrationsDir string `yaml:"migrations_dir"`
 	} `yaml:"db"`
 
+	Cache struct {
+		MaxSize         int           `yaml:"max_size"`
+		TTL             time.Duration `yaml:"ttl"`
+		CleanupInterval time.Duration `yaml:"cleanup_interval"`
+		Enabled         bool          `yaml:"enabled"`
+	} `yaml:"cache"`
+
 	Kafka struct {
 		Brokers  []string `yaml:"brokers"`
 		Topic    string   `yaml:"topic"`
@@ -79,5 +86,17 @@ func Load(path string) (*Config, error) {
 	if err := env.Parse(&cfg); err != nil {
 		return nil, errors.Wrap(err, "parse env")
 	}
+
+	// Устанавливаем значения по умолчанию для кеша
+	if cfg.Cache.MaxSize == 0 {
+		cfg.Cache.MaxSize = 1000
+	}
+	if cfg.Cache.TTL == 0 {
+		cfg.Cache.TTL = 5 * time.Minute
+	}
+	if cfg.Cache.CleanupInterval == 0 {
+		cfg.Cache.CleanupInterval = 10 * time.Minute
+	}
+
 	return &cfg, nil
 }
