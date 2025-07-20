@@ -36,6 +36,8 @@ func main() {
 	defer dbClient.Close()
 
 	outboxRepo := postgres.NewOutboxRepository(dbClient)
+	dlqRepo := postgres.NewDLQRepository(dbClient)
+
 	kafkaProducer, err := kafka.NewKafkaProducer(cfg.Kafka.Brokers, cfg.Kafka.Topic)
 	if err != nil {
 		slog.Error("Kafka producer creation failed", "error", err)
@@ -43,42 +45,51 @@ func main() {
 	}
 	defer kafkaProducer.Close()
 
-	worker := NewTwoPhaseOutboxWorker(outboxRepo, kafkaProducer, cfg.Outbox.BatchSize)
+	worker := NewTwoPhaseOutboxWorker(outboxRepo, dlqRepo, kafkaProducer, cfg.Outbox.BatchSize, dbClient)
+	dlqWorker := NewDLQWorker(dlqRepo, kafkaProducer)
 
-	slog.Info("Two-phase outbox worker started",
+	slog.Info("Outbox worker with DLQ started",
 		"interval", cfg.Outbox.WorkerInterval,
 		"batch_size", cfg.Outbox.BatchSize,
 		"kafka_topic", cfg.Kafka.Topic)
 
 	ctx := context.Background()
 	ticker := time.NewTicker(cfg.Outbox.WorkerInterval)
+	dlqTicker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
-	worker.ProcessOutboxMessages(ctx)
+	defer dlqTicker.Stop()
 
-	for range ticker.C {
-		worker.ProcessOutboxMessages(ctx)
+	for {
+		select {
+		case <-ticker.C:
+			worker.ProcessOutboxMessages(ctx)
+		case <-dlqTicker.C:
+			dlqWorker.ProcessDLQ(ctx)
+		}
 	}
 }
 
 type TwoPhaseOutboxWorker struct {
 	repo      *postgres.OutboxRepository
+	dlqRepo   *postgres.DLQRepository
 	producer  *kafka.KafkaProducer
 	batchSize int
+	dbClient  *db.Client
 }
 
-func NewTwoPhaseOutboxWorker(repo *postgres.OutboxRepository, producer *kafka.KafkaProducer, batchSize int) *TwoPhaseOutboxWorker {
+func NewTwoPhaseOutboxWorker(repo *postgres.OutboxRepository, dlqRepo *postgres.DLQRepository, producer *kafka.KafkaProducer, batchSize int, dbClient *db.Client) *TwoPhaseOutboxWorker {
 	return &TwoPhaseOutboxWorker{
 		repo:      repo,
+		dlqRepo:   dlqRepo,
 		producer:  producer,
 		batchSize: batchSize,
+		dbClient:  dbClient,
 	}
 }
 
 func (w *TwoPhaseOutboxWorker) ProcessOutboxMessages(ctx context.Context) {
 	now := time.Now()
-
 	w.phaseOne(ctx)
-
 	w.phaseTwo(ctx, now)
 }
 
@@ -90,7 +101,6 @@ func (w *TwoPhaseOutboxWorker) phaseOne(ctx context.Context) {
 	}
 
 	if len(messages) == 0 {
-		slog.Debug("No pending messages found in phase one")
 		return
 	}
 
@@ -100,11 +110,11 @@ func (w *TwoPhaseOutboxWorker) phaseOne(ctx context.Context) {
 	}
 
 	if err := w.repo.SetProcessing(ctx, ids); err != nil {
-		slog.Error("Failed to set processing status", "error", err, "count", len(ids))
+		slog.Error("Failed to set processing status", "error", err)
 		return
 	}
 
-	slog.Info("Phase one completed", "messages_set_to_processing", len(ids))
+	slog.Debug("Phase one completed", "messages_set_to_processing", len(ids))
 }
 
 func (w *TwoPhaseOutboxWorker) phaseTwo(ctx context.Context, now time.Time) {
@@ -115,11 +125,10 @@ func (w *TwoPhaseOutboxWorker) phaseTwo(ctx context.Context, now time.Time) {
 	}
 
 	if len(messages) == 0 {
-		slog.Debug("No processing messages found in phase two")
 		return
 	}
 
-	slog.Info("Phase two processing", "count", len(messages))
+	slog.Debug("Phase two processing", "count", len(messages))
 
 	for _, msg := range messages {
 		w.processMessage(ctx, msg, now)
@@ -128,16 +137,11 @@ func (w *TwoPhaseOutboxWorker) phaseTwo(ctx context.Context, now time.Time) {
 
 func (w *TwoPhaseOutboxWorker) processMessage(ctx context.Context, msg domain.OutboxMessage, now time.Time) {
 	if !msg.CanRetry(now) {
-		slog.Debug("Message not ready for retry", "id", msg.ID, "attempts", msg.Attempts, "last_attempt", msg.LastAttemptAt)
 		return
 	}
 
 	if msg.ShouldFail() {
-		if err := w.repo.FailMessage(ctx, msg.ID, domain.NoAttemptsLeftError); err != nil {
-			slog.Error("Failed to mark message as failed", "id", msg.ID, "error", err)
-		} else {
-			slog.Warn("Message marked as failed", "id", msg.ID, "attempts", msg.Attempts)
-		}
+		w.moveToDLQ(ctx, msg)
 		return
 	}
 
@@ -147,16 +151,10 @@ func (w *TwoPhaseOutboxWorker) processMessage(ctx context.Context, msg domain.Ou
 	}
 
 	if err := w.producer.Send(ctx, msg.Payload); err != nil {
-		slog.Error("Failed to send message to Kafka",
-			"id", msg.ID,
-			"attempt", msg.Attempts+1,
-			"error", err)
+		slog.Error("Failed to send message to Kafka", "id", msg.ID, "error", err)
 
 		if msg.Attempts+1 >= domain.MaxRetryAttempts {
-			errorMsg := err.Error()
-			if err := w.repo.UpdateStatus(ctx, msg.ID, domain.OutboxStatusFailed, &errorMsg); err != nil {
-				slog.Error("Failed to update status to failed", "id", msg.ID, "error", err)
-			}
+			w.moveToDLQ(ctx, msg)
 		}
 		return
 	}
@@ -166,7 +164,45 @@ func (w *TwoPhaseOutboxWorker) processMessage(ctx context.Context, msg domain.Ou
 		return
 	}
 
-	slog.Info("Message processed successfully",
-		"id", msg.ID,
-		"attempt", msg.Attempts+1)
+	slog.Debug("Message processed successfully", "id", msg.ID)
+}
+
+func (w *TwoPhaseOutboxWorker) moveToDLQ(ctx context.Context, msg domain.OutboxMessage) {
+	err := w.withTransaction(ctx, func(tx *db.Tx) error {
+		dlqMsg := domain.DLQMessage{
+			OriginalID: msg.ID,
+			Payload:    msg.Payload,
+			Error:      "Max retries exceeded",
+			Attempts:   msg.Attempts,
+			FailedAt:   time.Now(),
+			RetryAfter: time.Now().Add(domain.DLQRetryDelay),
+			MaxRetries: domain.DLQMaxRetries,
+		}
+
+		if err := w.dlqRepo.Save(ctx, tx, dlqMsg); err != nil {
+			return err
+		}
+
+		return w.repo.UpdateStatus(ctx, msg.ID, domain.OutboxStatusFailed, &dlqMsg.Error)
+	})
+
+	if err != nil {
+		slog.Error("Failed to move message to DLQ", "id", msg.ID, "error", err)
+	} else {
+		slog.Info("Message moved to DLQ", "id", msg.ID)
+	}
+}
+
+func (w *TwoPhaseOutboxWorker) withTransaction(ctx context.Context, fn func(*db.Tx) error) error {
+	tx, err := w.dbClient.BeginTx(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if err = fn(tx); err != nil {
+		return err
+	}
+
+	return tx.Commit()
 }

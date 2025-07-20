@@ -18,7 +18,6 @@ db:
     max_idle: 10
   migrations_dir: migrations
 
-# Настройки кеширования
 cache:
   enabled: true
   max_size: 1000
@@ -36,6 +35,9 @@ kafka:
 outbox:
   worker_interval: 5s
   batch_size: 100
+  dlq:
+    retry_interval: 5m
+    max_retries: 3
 
 telegram:
   bot_token: "API"
