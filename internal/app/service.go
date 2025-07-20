@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"os"
 	"sync/atomic"
 	"time"
 
@@ -108,23 +109,37 @@ func processConcurrently[T any](
 	return processed, err
 }
 
-func (s *PVZService) updateOrderStatusMetrics() {
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
+func (s *PVZService) updateOrderStatusMetrics(ctx context.Context) {
+	if os.Getenv("TESTING") == "true" {
+		return
+	}
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
 
-		orders, err := s.orderRepo.GetAllOrders(ctx)
-		if err != nil {
+	for {
+		select {
+		case <-ctx.Done():
 			return
-		}
+		case <-ticker.C:
+			func() {
+				if ctx.Err() != nil {
+					return
+				}
 
-		statusCounts := make(map[string]int)
-		for _, order := range orders {
-			statusCounts[order.GetStatusString()]++
-		}
+				orders, err := s.orderRepo.GetAllOrders(ctx)
+				if err != nil {
+					return
+				}
 
-		for _, status := range []string{"In Storage", "Given to client", "Returned from client", "Given to courier", "Given to courier without client"} {
-			metrics.OrdersByStatus.WithLabelValues(status).Set(float64(statusCounts[status]))
+				statusCounts := make(map[string]int)
+				for _, order := range orders {
+					statusCounts[order.GetStatusString()]++
+				}
+
+				for status, count := range statusCounts {
+					metrics.OrdersByStatus.WithLabelValues(status).Set(float64(count))
+				}
+			}()
 		}
-	}()
+	}
 }

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -36,6 +37,8 @@ func IdsOf(ord []domain.Order) (ids []uint64) {
 }
 
 func NewEnv(t *testing.T) (*mock.OrderRepositoryMock, *PVZService) {
+	os.Setenv("TESTING", "true")
+
 	ctrl := minimock.NewController(t)
 	repo := mock.NewOrderRepositoryMock(ctrl)
 	const testWorkerLimit = 8

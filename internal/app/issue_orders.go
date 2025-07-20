@@ -89,7 +89,7 @@ func (s *PVZService) IssueOrdersToClient(
 	})
 
 	metrics.OrdersIssuedTotal.Add(float64(processed))
-	s.updateOrderStatusMetrics()
+	s.updateOrderStatusMetrics(ctx)
 
 	return err
 }

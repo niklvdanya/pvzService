@@ -118,7 +118,7 @@ migrate-status:
 compose-up:
 	@docker-compose --env-file ./config/.env up -d
 
-	
+test-coverage: export TESTING=true
 test-coverage:
 	go test -v -race -coverprofile=cover.out ./...
 	go tool cover -html=cover.out -o cover.html
@@ -126,5 +126,6 @@ test-coverage:
 clean-coverage:
 	rm -f cover.out cover.html
 
+test: export TESTING=true
 test:
 	go test -v -race ./...

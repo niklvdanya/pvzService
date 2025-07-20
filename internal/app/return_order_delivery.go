@@ -61,7 +61,7 @@ func (s *PVZService) ReturnOrderToDelivery(ctx context.Context, orderID uint64) 
 		}
 
 		metrics.OrdersReturnedTotal.WithLabelValues("to_courier").Inc()
-		s.updateOrderStatusMetrics()
+		s.updateOrderStatusMetrics(ctx)
 		return s.orderRepo.SaveHistory(ctx, history)
 	}
 	return s.withTransaction(ctx, func(tx *db.Tx) error {
@@ -78,7 +78,7 @@ func (s *PVZService) ReturnOrderToDelivery(ctx context.Context, orderID uint64) 
 		}
 
 		metrics.OrdersReturnedTotal.WithLabelValues("to_courier").Inc()
-		s.updateOrderStatusMetrics()
+		s.updateOrderStatusMetrics(ctx)
 		return nil
 	})
 }
