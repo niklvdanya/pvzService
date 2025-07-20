@@ -33,7 +33,7 @@ func InitTracing() func() {
 		otlptracehttp.WithTimeout(5*time.Second),
 	)
 	if err != nil {
-		slog.Error("Failed to create OTLP exporter", "error", err, "endpoint", "http://"+otlpHost)
+		slog.Error("Failed to create OTLP exporter", "error", err, "endpoint", otlpHost)
 		return func() {}
 	}
 

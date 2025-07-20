@@ -87,7 +87,6 @@ func Load(path string) (*Config, error) {
 		return nil, errors.Wrap(err, "parse env")
 	}
 
-	// Устанавливаем значения по умолчанию для кеша
 	if cfg.Cache.MaxSize == 0 {
 		cfg.Cache.MaxSize = 1000
 	}

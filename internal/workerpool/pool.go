@@ -8,7 +8,7 @@ import (
 
 type Pool struct {
 	jobs    chan Job
-	kill    chan struct{}
+	kill    chan struct{} // сигналы для метода Resize
 	rootCtx context.Context
 	cancel  context.CancelFunc
 	wg      sync.WaitGroup
@@ -56,7 +56,7 @@ func (p *Pool) worker() {
 			if !ok {
 				return
 			}
-
+			// проверяем отмену контеста до выполнения
 			atomic.AddInt32(&p.active, 1)
 
 			if errCtx := job.Ctx.Err(); errCtx != nil {
