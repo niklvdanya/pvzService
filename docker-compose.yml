@@ -75,6 +75,18 @@ services:
     networks:
       - pvz-network
 
+  jaeger:
+    image: jaegertracing/all-in-one:1.50
+    ports:
+      - "16686:16686"
+      - "14268:14268"
+      - "4317:4317"
+      - "4318:4318"
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    networks:
+      - pvz-network
+
   migrate:
     image: golang:1.23-alpine
     working_dir: /src
@@ -97,6 +109,9 @@ services:
     image: golang:1.23-alpine
     working_dir: /src
     env_file: ./config/.env
+    environment:
+      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://jaeger:4318/v1/traces
+      - OTEL_SERVICE_NAME=pvz-service
     volumes:
       - .:/src
     command: ["go", "run", "./cmd/pvz"]
@@ -105,6 +120,8 @@ services:
         condition: service_completed_successfully
       kafka-init:
         condition: service_completed_successfully
+      jaeger:
+        condition: service_started
     ports:
       - "50051:50051"
       - "6060:6060"
@@ -116,6 +133,9 @@ services:
     image: golang:1.23-alpine
     working_dir: /src
     env_file: ./config/.env
+    environment:
+      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://jaeger:4318/v1/traces
+      - OTEL_SERVICE_NAME=pvz-gateway
     volumes:
       - .:/src
     command: ["go", "run", "./cmd/gateway"]
@@ -145,6 +165,9 @@ services:
     image: golang:1.23-alpine
     working_dir: /src
     env_file: ./config/.env
+    environment:
+      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://jaeger:4318/v1/traces
+      - OTEL_SERVICE_NAME=pvz-outbox-worker
     volumes:
       - .:/src
     command: ["go", "run", "./cmd/outbox"]
@@ -153,6 +176,8 @@ services:
         condition: service_completed_successfully
       kafka-init:
         condition: service_completed_successfully
+      jaeger:
+        condition: service_started
     networks:
       - pvz-network
 
@@ -160,12 +185,17 @@ services:
     image: golang:1.23-alpine
     working_dir: /src
     env_file: ./config/.env
+    environment:
+      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://jaeger:4318/v1/traces
+      - OTEL_SERVICE_NAME=pvz-notifier
     volumes:
       - .:/src
     command: ["go", "run", "./cmd/notifier"]
     depends_on:
       kafka-init:
         condition: service_completed_successfully
+      jaeger:
+        condition: service_started
     networks:
       - pvz-network
     restart: unless-stopped

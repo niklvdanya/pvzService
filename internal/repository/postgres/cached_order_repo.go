@@ -179,6 +179,36 @@ func (r *CachedOrderRepository) GetHistoryByOrderID(ctx context.Context, orderID
 	return history, nil
 }
 
+func (r *CachedOrderRepository) SaveOrderInTx(ctx context.Context, tx *db.Tx, order domain.Order) error {
+	if err := r.repo.SaveOrderInTx(ctx, tx, order); err != nil {
+		return err
+	}
+
+	r.invalidateOrderCaches(order.OrderID, order.ReceiverID)
+
+	return nil
+}
+
+func (r *CachedOrderRepository) UpdateOrderInTx(ctx context.Context, tx *db.Tx, order domain.Order) error {
+	if err := r.repo.UpdateOrderInTx(ctx, tx, order); err != nil {
+		return err
+	}
+
+	r.invalidateOrderCaches(order.OrderID, order.ReceiverID)
+
+	return nil
+}
+
+func (r *CachedOrderRepository) SaveHistoryInTx(ctx context.Context, tx *db.Tx, history domain.OrderHistory) error {
+	if err := r.repo.SaveHistoryInTx(ctx, tx, history); err != nil {
+		return err
+	}
+
+	r.historyCache.Delete(r.historyKey(history.OrderID))
+
+	return nil
+}
+
 func (r *CachedOrderRepository) CleanupExpired() {
 	r.orderCache.CleanupExpired()
 	r.receiverCache.CleanupExpired()

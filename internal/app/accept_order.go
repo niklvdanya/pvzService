@@ -79,16 +79,16 @@ func (s *PVZService) AcceptOrder(ctx context.Context, req domain.AcceptOrderRequ
 		}
 
 		metrics.OrdersAcceptedTotal.Inc()
-		s.updateOrderStatusMetrics(ctx)
+		s.updateOrderStatusMetrics()
 
 		return totalPrice, nil
 	}
 	err := s.withTransaction(ctx, func(tx *db.Tx) error {
-		if err := saveOrderInTx(ctx, tx, order); err != nil {
+		if err := s.orderRepo.SaveOrderInTx(ctx, tx, order); err != nil {
 			return fmt.Errorf("save order: %w", err)
 		}
 
-		if err := saveHistoryInTx(ctx, tx, history); err != nil {
+		if err := s.orderRepo.SaveHistoryInTx(ctx, tx, history); err != nil {
 			return fmt.Errorf("save history: %w", err)
 		}
 
@@ -104,7 +104,7 @@ func (s *PVZService) AcceptOrder(ctx context.Context, req domain.AcceptOrderRequ
 	}
 
 	metrics.OrdersAcceptedTotal.Inc()
-	s.updateOrderStatusMetrics(ctx)
+	s.updateOrderStatusMetrics()
 
 	return totalPrice, nil
 }

@@ -63,11 +63,11 @@ func (s *PVZService) issueSingle(ctx context.Context, receiverID uint64, orderID
 		return s.orderRepo.SaveHistory(ctx, history)
 	}
 	return s.withTransaction(ctx, func(tx *db.Tx) error {
-		if err := updateOrderInTx(ctx, tx, order); err != nil {
+		if err := s.orderRepo.UpdateOrderInTx(ctx, tx, order); err != nil {
 			return fmt.Errorf("update order: %w", err)
 		}
 
-		if err := saveHistoryInTx(ctx, tx, hist); err != nil {
+		if err := s.orderRepo.SaveHistoryInTx(ctx, tx, hist); err != nil {
 			return fmt.Errorf("save history: %w", err)
 		}
 
@@ -89,7 +89,7 @@ func (s *PVZService) IssueOrdersToClient(
 	})
 
 	metrics.OrdersIssuedTotal.Add(float64(processed))
-	s.updateOrderStatusMetrics(ctx)
+	s.updateOrderStatusMetrics()
 
 	return err
 }

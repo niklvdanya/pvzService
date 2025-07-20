@@ -22,6 +22,9 @@ type OrderRepository interface {
 	GetPackageRules(ctx context.Context, code string) ([]domain.PackageRules, error)
 	SaveHistory(ctx context.Context, history domain.OrderHistory) error
 	GetHistoryByOrderID(ctx context.Context, orderID uint64) ([]domain.OrderHistory, error)
+	UpdateOrderInTx(ctx context.Context, tx *db.Tx, order domain.Order) error
+	SaveOrderInTx(ctx context.Context, tx *db.Tx, order domain.Order) error
+	SaveHistoryInTx(ctx context.Context, tx *db.Tx, history domain.OrderHistory) error
 }
 
 type OutboxRepository interface {
@@ -109,37 +112,27 @@ func processConcurrently[T any](
 	return processed, err
 }
 
-func (s *PVZService) updateOrderStatusMetrics(ctx context.Context) {
+func (s *PVZService) updateOrderStatusMetrics() {
 	if os.Getenv("TESTING") == "true" {
 		return
 	}
-	ticker := time.NewTicker(30 * time.Second)
-	defer ticker.Stop()
 
-	for {
-		select {
-		case <-ctx.Done():
+	go func() {
+		metricsCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		orders, err := s.orderRepo.GetAllOrders(metricsCtx)
+		if err != nil {
 			return
-		case <-ticker.C:
-			func() {
-				if ctx.Err() != nil {
-					return
-				}
-
-				orders, err := s.orderRepo.GetAllOrders(ctx)
-				if err != nil {
-					return
-				}
-
-				statusCounts := make(map[string]int)
-				for _, order := range orders {
-					statusCounts[order.GetStatusString()]++
-				}
-
-				for status, count := range statusCounts {
-					metrics.OrdersByStatus.WithLabelValues(status).Set(float64(count))
-				}
-			}()
 		}
-	}
+
+		statusCounts := make(map[string]int)
+		for _, order := range orders {
+			statusCounts[order.GetStatusString()]++
+		}
+
+		for status, count := range statusCounts {
+			metrics.OrdersByStatus.WithLabelValues(status).Set(float64(count))
+		}
+	}()
 }

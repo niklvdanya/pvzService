@@ -6,6 +6,11 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type ClientMode string
@@ -20,6 +25,7 @@ type Client struct {
 	writeDB *sql.DB
 	logger  *slog.Logger
 	txMutex sync.Mutex
+	tracer  trace.Tracer
 }
 
 type Config struct {
@@ -63,6 +69,7 @@ func NewClient(cfg Config) (*Client, error) {
 		readDB:  readDB,
 		writeDB: writeDB,
 		logger:  logger,
+		tracer:  otel.Tracer("pvz-db"),
 	}, nil
 }
 
@@ -86,28 +93,67 @@ func (c *Client) Close() error {
 }
 
 func (c *Client) Exec(ctx context.Context, mode ClientMode, query string, args ...interface{}) (sql.Result, error) {
+	ctx, span := c.tracer.Start(ctx, "db.exec",
+		trace.WithAttributes(
+			attribute.String("db.system", "postgresql"),
+			attribute.String("db.operation", "exec"),
+			attribute.String("db.mode", string(mode)),
+			attribute.String("db.statement", query),
+		),
+	)
+	defer span.End()
+
 	db := c.getDB(mode)
 	result, err := db.ExecContext(ctx, query, args...)
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
 		c.logger.Error("Error executing query", "error", err)
 		return nil, fmt.Errorf("exec query: %w", err)
 	}
+
+	if rowsAffected, err := result.RowsAffected(); err == nil {
+		span.SetAttributes(attribute.Int64("db.rows_affected", rowsAffected))
+	}
+
+	span.SetStatus(codes.Ok, "")
 	c.logger.Info("Query executed successfully")
 	return result, nil
 }
 
 func (c *Client) Query(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
+	ctx, span := c.tracer.Start(ctx, "db.query",
+		trace.WithAttributes(
+			attribute.String("db.system", "postgresql"),
+			attribute.String("db.operation", "query"),
+			attribute.String("db.statement", query),
+		),
+	)
+	defer span.End()
+
 	rows, err := c.readDB.QueryContext(ctx, query, args...)
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
 		c.logger.Error("Error executing query", "error", err)
 		return nil, fmt.Errorf("query: %w", err)
 	}
+
+	span.SetStatus(codes.Ok, "")
 	c.logger.Info("Query executed successfully")
 	return rows, nil
 }
 
 func (c *Client) QueryRow(ctx context.Context, query string, args ...interface{}) *sql.Row {
+	ctx, span := c.tracer.Start(ctx, "db.query_row",
+		trace.WithAttributes(
+			attribute.String("db.system", "postgresql"),
+			attribute.String("db.operation", "query_row"),
+			attribute.String("db.statement", query),
+		),
+	)
+	defer span.End()
+
 	row := c.readDB.QueryRowContext(ctx, query, args...)
+	span.SetStatus(codes.Ok, "")
 	return row
 }
 
@@ -115,13 +161,24 @@ func (c *Client) BeginTx(ctx context.Context) (*Tx, error) {
 	c.txMutex.Lock()
 	defer c.txMutex.Unlock()
 
+	ctx, span := c.tracer.Start(ctx, "db.begin_tx",
+		trace.WithAttributes(
+			attribute.String("db.system", "postgresql"),
+			attribute.String("db.operation", "begin"),
+		),
+	)
+	defer span.End()
+
 	tx, err := c.writeDB.BeginTx(ctx, nil)
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
 		c.logger.Error("Error starting transaction", "error", err)
 		return nil, fmt.Errorf("begin transaction: %w", err)
 	}
+
+	span.SetStatus(codes.Ok, "")
 	c.logger.Info("Transaction started")
-	return &Tx{tx: tx, logger: c.logger}, nil
+	return &Tx{tx: tx, logger: c.logger, tracer: c.tracer}, nil
 }
 
 func (c *Client) getDB(mode ClientMode) *sql.DB {

@@ -19,6 +19,7 @@ import (
 	"gitlab.ozon.dev/safariproxd/homework/internal/infra"
 	"gitlab.ozon.dev/safariproxd/homework/internal/metrics"
 	"gitlab.ozon.dev/safariproxd/homework/internal/repository/postgres"
+	"gitlab.ozon.dev/safariproxd/homework/internal/tracing"
 	"gitlab.ozon.dev/safariproxd/homework/internal/workerpool"
 	"gitlab.ozon.dev/safariproxd/homework/pkg/cache"
 	"gitlab.ozon.dev/safariproxd/homework/pkg/db"
@@ -27,6 +28,9 @@ import (
 )
 
 func main() {
+	shutdownTracing := tracing.InitTracing()
+	defer shutdownTracing()
+
 	cfg, err := config.Load("config/config.yaml")
 	if err != nil {
 		slog.Error("Config load failed", "error", err)
@@ -112,6 +116,7 @@ func main() {
 		grpc.ChainUnaryInterceptor(
 			mw.RateLimiterInterceptor(limiterInstance),
 			mw.TimeoutInterceptor(2*time.Second),
+			mw.TracingInterceptor(),
 			mw.LoggingInterceptor(),
 			mw.ValidationInterceptor(),
 			mw.ErrorMappingInterceptor(),
@@ -158,5 +163,6 @@ func main() {
 		func(ctx context.Context) { grpcServer.GracefulStop() },
 		admin.Shutdown,
 		func(ctx context.Context) { pool.Close() },
+		func(ctx context.Context) { shutdownTracing() },
 	)
 }

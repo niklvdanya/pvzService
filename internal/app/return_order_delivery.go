@@ -61,15 +61,15 @@ func (s *PVZService) ReturnOrderToDelivery(ctx context.Context, orderID uint64) 
 		}
 
 		metrics.OrdersReturnedTotal.WithLabelValues("to_courier").Inc()
-		s.updateOrderStatusMetrics(ctx)
+		s.updateOrderStatusMetrics()
 		return s.orderRepo.SaveHistory(ctx, history)
 	}
 	return s.withTransaction(ctx, func(tx *db.Tx) error {
-		if err := updateOrderInTx(ctx, tx, order); err != nil {
+		if err := s.orderRepo.UpdateOrderInTx(ctx, tx, order); err != nil {
 			return fmt.Errorf("update order: %w", err)
 		}
 
-		if err := saveHistoryInTx(ctx, tx, history); err != nil {
+		if err := s.orderRepo.SaveHistoryInTx(ctx, tx, history); err != nil {
 			return fmt.Errorf("save history: %w", err)
 		}
 
@@ -78,7 +78,7 @@ func (s *PVZService) ReturnOrderToDelivery(ctx context.Context, orderID uint64) 
 		}
 
 		metrics.OrdersReturnedTotal.WithLabelValues("to_courier").Inc()
-		s.updateOrderStatusMetrics(ctx)
+		s.updateOrderStatusMetrics()
 		return nil
 	})
 }
