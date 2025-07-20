@@ -114,6 +114,7 @@ func main() {
 
 	grpcServer := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
+			mw.PanicInterceptor(),
 			mw.RateLimiterInterceptor(limiterInstance),
 			mw.TimeoutInterceptor(2*time.Second),
 			mw.TracingInterceptor(),
