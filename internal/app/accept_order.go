@@ -5,10 +5,10 @@ import (
 	"fmt"
 
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
+	"gitlab.ozon.dev/safariproxd/homework/internal/metrics"
 	"gitlab.ozon.dev/safariproxd/homework/pkg/db"
 )
 
-// удалил часть валидации из бизнес логики, ибо в protoc validate она уже встроена
 func (s *PVZService) AcceptOrder(ctx context.Context, req domain.AcceptOrderRequest) (float64, error) {
 	currentTime := s.nowFn()
 
@@ -78,8 +78,10 @@ func (s *PVZService) AcceptOrder(ctx context.Context, req domain.AcceptOrderRequ
 			return 0, fmt.Errorf("repo.SaveHistory: %w", err)
 		}
 
-		return totalPrice, nil
+		metrics.OrdersAcceptedTotal.Inc()
+		s.updateOrderStatusMetrics()
 
+		return totalPrice, nil
 	}
 	err := s.withTransaction(ctx, func(tx *db.Tx) error {
 		if err := saveOrderInTx(ctx, tx, order); err != nil {
@@ -100,6 +102,9 @@ func (s *PVZService) AcceptOrder(ctx context.Context, req domain.AcceptOrderRequ
 	if err != nil {
 		return 0, err
 	}
+
+	metrics.OrdersAcceptedTotal.Inc()
+	s.updateOrderStatusMetrics()
 
 	return totalPrice, nil
 }

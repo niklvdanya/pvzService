@@ -4,10 +4,12 @@ import (
 	"context"
 	"log/slog"
 	"net"
+	"net/http"
 	"os"
 	"time"
 
 	_ "github.com/lib/pq"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/ulule/limiter/v3"
 	"github.com/ulule/limiter/v3/drivers/store/memory"
 	server "gitlab.ozon.dev/safariproxd/homework/internal/adapter/grpc"
@@ -15,6 +17,7 @@ import (
 	"gitlab.ozon.dev/safariproxd/homework/internal/app"
 	"gitlab.ozon.dev/safariproxd/homework/internal/config"
 	"gitlab.ozon.dev/safariproxd/homework/internal/infra"
+	"gitlab.ozon.dev/safariproxd/homework/internal/metrics"
 	"gitlab.ozon.dev/safariproxd/homework/internal/repository/postgres"
 	"gitlab.ozon.dev/safariproxd/homework/internal/workerpool"
 	"gitlab.ozon.dev/safariproxd/homework/pkg/cache"
@@ -63,7 +66,13 @@ func main() {
 
 			for range ticker.C {
 				cachedRepo.CleanupExpired()
-				slog.Debug("Cache cleanup completed", "stats", cachedRepo.GetCacheStats())
+				stats := cachedRepo.GetCacheStats()
+
+				for cacheType, size := range stats {
+					metrics.CacheSize.WithLabelValues(cacheType).Set(float64(size))
+				}
+
+				slog.Debug("Cache cleanup completed", "stats", stats)
 			}
 		}()
 
@@ -81,6 +90,22 @@ func main() {
 
 	pool := workerpool.New(cfg.Service.WorkerLimit, cfg.Service.QueueSize)
 
+	go func() {
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
+
+		for range ticker.C {
+			metrics.WorkerPoolActive.Set(float64(pool.ActiveWorkers()))
+			metrics.WorkerPoolQueueSize.Set(float64(pool.QueueSize()))
+
+			slog.Debug("Worker pool stats",
+				"active", pool.ActiveWorkers(),
+				"total", pool.WorkerCount(),
+				"queue_size", pool.QueueSize(),
+				"queue_capacity", pool.QueueCapacity())
+		}
+	}()
+
 	limiterInstance := limiter.New(memory.NewStore(), limiter.Rate{Period: cfg.Service.Timeout, Limit: 5})
 
 	grpcServer := grpc.NewServer(
@@ -90,6 +115,7 @@ func main() {
 			mw.LoggingInterceptor(),
 			mw.ValidationInterceptor(),
 			mw.ErrorMappingInterceptor(),
+			mw.MetricsInterceptor(),
 			mw.PoolInterceptor(pool),
 		),
 	)
@@ -108,6 +134,14 @@ func main() {
 		if err := grpcServer.Serve(lis); err != nil {
 			slog.Error("gRPC serve error", "error", err)
 			os.Exit(1)
+		}
+	}()
+
+	go func() {
+		http.Handle("/metrics", promhttp.Handler())
+		slog.Info("Metrics server listening", "addr", ":9090")
+		if err := http.ListenAndServe(":9090", nil); err != nil {
+			slog.Error("Metrics server error", "error", err)
 		}
 	}()
 

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
+	"gitlab.ozon.dev/safariproxd/homework/internal/metrics"
 	"gitlab.ozon.dev/safariproxd/homework/pkg/db"
 	"golang.org/x/sync/errgroup"
 )
@@ -105,4 +106,25 @@ func processConcurrently[T any](
 
 	err := g.Wait()
 	return processed, err
+}
+
+func (s *PVZService) updateOrderStatusMetrics() {
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		orders, err := s.orderRepo.GetAllOrders(ctx)
+		if err != nil {
+			return
+		}
+
+		statusCounts := make(map[string]int)
+		for _, order := range orders {
+			statusCounts[order.GetStatusString()]++
+		}
+
+		for _, status := range []string{"In Storage", "Given to client", "Returned from client", "Given to courier", "Given to courier without client"} {
+			metrics.OrdersByStatus.WithLabelValues(status).Set(float64(statusCounts[status]))
+		}
+	}()
 }

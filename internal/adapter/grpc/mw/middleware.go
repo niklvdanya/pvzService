@@ -7,6 +7,7 @@ import (
 
 	"github.com/ulule/limiter/v3"
 	server "gitlab.ozon.dev/safariproxd/homework/internal/adapter/grpc"
+	"gitlab.ozon.dev/safariproxd/homework/internal/metrics"
 	"gitlab.ozon.dev/safariproxd/homework/internal/workerpool"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -103,5 +104,26 @@ func PoolInterceptor(pool *workerpool.Pool) grpc.UnaryServerInterceptor {
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		}
+	}
+}
+
+func MetricsInterceptor() grpc.UnaryServerInterceptor {
+	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+		start := time.Now()
+
+		resp, err := handler(ctx, req)
+
+		duration := time.Since(start).Seconds()
+		statusCode := codes.OK
+		if err != nil {
+			statusCode = status.Code(err)
+		}
+
+		metrics.GRPCDuration.WithLabelValues(
+			info.FullMethod,
+			statusCode.String(),
+		).Observe(duration)
+
+		return resp, err
 	}
 }

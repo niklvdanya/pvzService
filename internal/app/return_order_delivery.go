@@ -6,6 +6,7 @@ import (
 
 	"gitlab.ozon.dev/safariproxd/homework/internal/adapter/cli"
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
+	"gitlab.ozon.dev/safariproxd/homework/internal/metrics"
 	"gitlab.ozon.dev/safariproxd/homework/pkg/db"
 )
 
@@ -58,6 +59,9 @@ func (s *PVZService) ReturnOrderToDelivery(ctx context.Context, orderID uint64) 
 			Status:    order.Status,
 			ChangedAt: order.AcceptTime,
 		}
+
+		metrics.OrdersReturnedTotal.WithLabelValues("to_courier").Inc()
+		s.updateOrderStatusMetrics()
 		return s.orderRepo.SaveHistory(ctx, history)
 	}
 	return s.withTransaction(ctx, func(tx *db.Tx) error {
@@ -73,6 +77,8 @@ func (s *PVZService) ReturnOrderToDelivery(ctx context.Context, orderID uint64) 
 			return fmt.Errorf("save event: %w", err)
 		}
 
+		metrics.OrdersReturnedTotal.WithLabelValues("to_courier").Inc()
+		s.updateOrderStatusMetrics()
 		return nil
 	})
 }

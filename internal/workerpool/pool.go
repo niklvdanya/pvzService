@@ -8,11 +8,12 @@ import (
 
 type Pool struct {
 	jobs    chan Job
-	kill    chan struct{} // сигналы для метода Resize
+	kill    chan struct{}
 	rootCtx context.Context
 	cancel  context.CancelFunc
 	wg      sync.WaitGroup
 	workers int32
+	active  int32
 	mu      sync.RWMutex
 	closed  bool
 }
@@ -55,12 +56,15 @@ func (p *Pool) worker() {
 			if !ok {
 				return
 			}
-			// проверяем отмену контеста до выполнения
+
+			atomic.AddInt32(&p.active, 1)
+
 			if errCtx := job.Ctx.Err(); errCtx != nil {
 				select {
 				case job.Resp <- Response{Err: errCtx}:
 				default:
 				}
+				atomic.AddInt32(&p.active, -1)
 				continue
 			}
 
@@ -69,6 +73,8 @@ func (p *Pool) worker() {
 			case job.Resp <- Response{Value: v, Err: err}:
 			case <-job.Ctx.Done():
 			}
+
+			atomic.AddInt32(&p.active, -1)
 		case <-p.rootCtx.Done():
 			return
 		}
@@ -80,11 +86,13 @@ func (p *Pool) Submit(j Job) {
 	case p.jobs <- j:
 	default:
 		// случай для заполненной очереди: выполняем задачу синхронно, чтобы не задерживать вызов rpc‑хендлера
+		atomic.AddInt32(&p.active, 1)
 		v, err := j.Run(j.Ctx)
 		select {
 		case j.Resp <- Response{Value: v, Err: err}:
 		case <-j.Ctx.Done():
 		}
+		atomic.AddInt32(&p.active, -1)
 	}
 }
 
@@ -133,4 +141,20 @@ func (p *Pool) Close() {
 	}
 	p.wg.Wait()
 	close(p.kill)
+}
+
+func (p *Pool) ActiveWorkers() int {
+	return int(atomic.LoadInt32(&p.active))
+}
+
+func (p *Pool) WorkerCount() int {
+	return int(atomic.LoadInt32(&p.workers))
+}
+
+func (p *Pool) QueueSize() int {
+	return len(p.jobs)
+}
+
+func (p *Pool) QueueCapacity() int {
+	return cap(p.jobs)
 }

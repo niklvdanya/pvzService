@@ -7,6 +7,7 @@ import (
 
 	"gitlab.ozon.dev/safariproxd/homework/internal/adapter/cli"
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
+	"gitlab.ozon.dev/safariproxd/homework/internal/metrics"
 	"gitlab.ozon.dev/safariproxd/homework/pkg/db"
 )
 
@@ -83,8 +84,12 @@ func (s *PVZService) IssueOrdersToClient(
 	receiverID uint64,
 	orderIDs []uint64,
 ) error {
-	_, err := processConcurrently(ctx, orderIDs, s.workerLimit, func(c context.Context, id uint64) error {
+	processed, err := processConcurrently(ctx, orderIDs, s.workerLimit, func(c context.Context, id uint64) error {
 		return s.issueSingle(c, receiverID, id, s.nowFn())
 	})
+
+	metrics.OrdersIssuedTotal.Add(float64(processed))
+	s.updateOrderStatusMetrics()
+
 	return err
 }

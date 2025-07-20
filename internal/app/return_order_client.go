@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
+	"gitlab.ozon.dev/safariproxd/homework/internal/metrics"
 	"gitlab.ozon.dev/safariproxd/homework/pkg/db"
 )
 
@@ -18,7 +19,7 @@ func (s *PVZService) returnSingle(ctx context.Context, receiverID uint64, orderI
 	if order.ReceiverID != receiverID {
 		return domain.BelongsToDifferentReceiverError(orderID, receiverID, order.ReceiverID)
 	}
-	if order.Status == domain.StatusInStorage {
+	if order.Status == domain.StatusInStorage || order.Status == domain.StatusReturnedFromClient {
 		return domain.AlreadyInStorageError(orderID)
 	}
 	if now.Sub(order.LastUpdateTime) > 48*time.Hour {
@@ -80,8 +81,12 @@ func (s *PVZService) ReturnOrdersFromClient(
 	orderIDs []uint64,
 ) error {
 	now := s.nowFn()
-	_, err := processConcurrently(ctx, orderIDs, s.workerLimit, func(c context.Context, id uint64) error {
+	processed, err := processConcurrently(ctx, orderIDs, s.workerLimit, func(c context.Context, id uint64) error {
 		return s.returnSingle(c, receiverID, id, now)
 	})
+
+	metrics.OrdersReturnedTotal.WithLabelValues("by_client").Add(float64(processed))
+	s.updateOrderStatusMetrics()
+
 	return err
 }

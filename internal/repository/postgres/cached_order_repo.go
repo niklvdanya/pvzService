@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
+	"gitlab.ozon.dev/safariproxd/homework/internal/metrics"
 	"gitlab.ozon.dev/safariproxd/homework/pkg/cache"
 	"gitlab.ozon.dev/safariproxd/homework/pkg/db"
 )
@@ -32,9 +33,11 @@ func NewCachedOrderRepository(client *db.Client, cacheConfig cache.Config) *Cach
 func (r *CachedOrderRepository) Exists(ctx context.Context, orderID uint64) (bool, error) {
 	key := r.orderKey(orderID)
 	if _, found := r.orderCache.Get(key); found {
+		metrics.CacheHits.WithLabelValues("orders", "hit").Inc()
 		return true, nil
 	}
 
+	metrics.CacheHits.WithLabelValues("orders", "miss").Inc()
 	return r.repo.Exists(ctx, orderID)
 }
 
@@ -53,9 +56,11 @@ func (r *CachedOrderRepository) GetByID(ctx context.Context, orderID uint64) (do
 	key := r.orderKey(orderID)
 
 	if order, found := r.orderCache.Get(key); found {
+		metrics.CacheHits.WithLabelValues("orders", "hit").Inc()
 		return order, nil
 	}
 
+	metrics.CacheHits.WithLabelValues("orders", "miss").Inc()
 	order, err := r.repo.GetByID(ctx, orderID)
 	if err != nil {
 		return order, err
@@ -79,9 +84,11 @@ func (r *CachedOrderRepository) GetByReceiverID(ctx context.Context, receiverID 
 	key := r.receiverKey(receiverID)
 
 	if orders, found := r.receiverCache.Get(key); found {
+		metrics.CacheHits.WithLabelValues("receivers", "hit").Inc()
 		return orders, nil
 	}
 
+	metrics.CacheHits.WithLabelValues("receivers", "miss").Inc()
 	orders, err := r.repo.GetByReceiverID(ctx, receiverID)
 	if err != nil {
 		return orders, err
@@ -95,9 +102,11 @@ func (r *CachedOrderRepository) GetReturnedOrders(ctx context.Context) ([]domain
 	key := "returned_orders"
 
 	if orders, found := r.receiverCache.Get(key); found {
+		metrics.CacheHits.WithLabelValues("receivers", "hit").Inc()
 		return orders, nil
 	}
 
+	metrics.CacheHits.WithLabelValues("receivers", "miss").Inc()
 	orders, err := r.repo.GetReturnedOrders(ctx)
 	if err != nil {
 		return orders, err
@@ -111,9 +120,11 @@ func (r *CachedOrderRepository) GetAllOrders(ctx context.Context) ([]domain.Orde
 	key := "all_orders"
 
 	if orders, found := r.receiverCache.Get(key); found {
+		metrics.CacheHits.WithLabelValues("receivers", "hit").Inc()
 		return orders, nil
 	}
 
+	metrics.CacheHits.WithLabelValues("receivers", "miss").Inc()
 	orders, err := r.repo.GetAllOrders(ctx)
 	if err != nil {
 		return orders, err
@@ -127,9 +138,11 @@ func (r *CachedOrderRepository) GetPackageRules(ctx context.Context, code string
 	key := fmt.Sprintf("package_rules:%s", code)
 
 	if rules, found := r.packageRulesCache.Get(key); found {
+		metrics.CacheHits.WithLabelValues("package_rules", "hit").Inc()
 		return rules, nil
 	}
 
+	metrics.CacheHits.WithLabelValues("package_rules", "miss").Inc()
 	rules, err := r.repo.GetPackageRules(ctx, code)
 	if err != nil {
 		return rules, err
@@ -152,9 +165,11 @@ func (r *CachedOrderRepository) GetHistoryByOrderID(ctx context.Context, orderID
 	key := r.historyKey(orderID)
 
 	if history, found := r.historyCache.Get(key); found {
+		metrics.CacheHits.WithLabelValues("history", "hit").Inc()
 		return history, nil
 	}
 
+	metrics.CacheHits.WithLabelValues("history", "miss").Inc()
 	history, err := r.repo.GetHistoryByOrderID(ctx, orderID)
 	if err != nil {
 		return history, err

@@ -11,6 +11,7 @@ import (
 	"github.com/IBM/sarama"
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
 	"gitlab.ozon.dev/safariproxd/homework/internal/infra/telegram"
+	"gitlab.ozon.dev/safariproxd/homework/internal/metrics"
 )
 
 type EventHandler struct {
@@ -31,15 +32,21 @@ func (h *EventHandler) HandleMessage(ctx context.Context, message *sarama.Consum
 	if err := json.Unmarshal(message.Value, &event); err != nil {
 		errorMsg := fmt.Sprintf("failed to unmarshal event: %v", err)
 		slog.Error("Event parsing failed", "error", err, "raw_message", string(message.Value))
+
+		metrics.KafkaMessagesProcessed.WithLabelValues("error").Inc()
+
 		if notifyErr := h.telegramNotifier.NotifyError(ctx, errorMsg, "unknown"); notifyErr != nil {
 			slog.Error("Failed to send telegram error notification", "error", notifyErr)
 		}
 
 		return errors.New(errorMsg)
 	}
+
 	if err := h.validateEvent(&event); err != nil {
 		errorMsg := fmt.Sprintf("invalid event: %v", err)
 		slog.Error("Event validation failed", "error", err, "event_id", event.EventID)
+
+		metrics.KafkaMessagesProcessed.WithLabelValues("error").Inc()
 
 		if notifyErr := h.telegramNotifier.NotifyError(ctx, errorMsg, event.EventID); notifyErr != nil {
 			slog.Error("Failed to send telegram error notification", "error", notifyErr)
@@ -47,6 +54,7 @@ func (h *EventHandler) HandleMessage(ctx context.Context, message *sarama.Consum
 
 		return errors.New(errorMsg)
 	}
+
 	if err := h.telegramNotifier.NotifyEvent(ctx, &event); err != nil {
 		slog.Error("Failed to send telegram notification",
 			"error", err,
@@ -62,6 +70,8 @@ func (h *EventHandler) HandleMessage(ctx context.Context, message *sarama.Consum
 
 	h.logEvent(&event, message)
 	h.processedCount++
+
+	metrics.KafkaMessagesProcessed.WithLabelValues("success").Inc()
 
 	if h.processedCount%50 == 0 || time.Since(h.lastStatisticTime) > 10*time.Minute {
 		if err := h.telegramNotifier.NotifyStatistics(ctx, h.processedCount, event.EventType); err != nil {
