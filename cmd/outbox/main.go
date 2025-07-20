@@ -55,7 +55,7 @@ func main() {
 
 	ctx := context.Background()
 	ticker := time.NewTicker(cfg.Outbox.WorkerInterval)
-	dlqTicker := time.NewTicker(5 * time.Minute)
+	dlqTicker := time.NewTicker(5 * time.Minute) // DLQ every 5 minutes
 	defer ticker.Stop()
 	defer dlqTicker.Stop()
 
@@ -198,7 +198,12 @@ func (w *TwoPhaseOutboxWorker) withTransaction(ctx context.Context, fn func(*db.
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+
+	defer func() {
+		if err := tx.Rollback(); err != nil {
+			slog.Warn("Failed to rollback transaction", "error", err)
+		}
+	}()
 
 	if err = fn(tx); err != nil {
 		return err
