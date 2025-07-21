@@ -64,7 +64,7 @@ func (s *PVZService) ReturnOrderToDelivery(ctx context.Context, orderID uint64) 
 		s.updateOrderStatusMetrics()
 		return s.orderRepo.SaveHistory(ctx, history)
 	}
-	return s.withTransaction(ctx, func(tx *db.Tx) error {
+	return s.dbClient.WithTransaction(ctx, func(tx *db.Tx) error {
 		if err := s.orderRepo.UpdateOrderInTx(ctx, tx, order); err != nil {
 			return fmt.Errorf("update order: %w", err)
 		}

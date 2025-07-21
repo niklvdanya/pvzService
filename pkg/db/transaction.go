@@ -121,3 +121,29 @@ func (t *Tx) Rollback() error {
 	t.logger.Info("Transaction rolled back")
 	return nil
 }
+
+func (c *Client) WithTransaction(ctx context.Context, fn func(*Tx) error) error {
+	tx, err := c.BeginTx(ctx)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	if err = fn(tx); err != nil {
+		return err
+	}
+
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("commit tx: %w", err)
+	}
+
+	return nil
+}

@@ -83,7 +83,7 @@ func (s *PVZService) AcceptOrder(ctx context.Context, req domain.AcceptOrderRequ
 
 		return totalPrice, nil
 	}
-	err := s.withTransaction(ctx, func(tx *db.Tx) error {
+	err := s.dbClient.WithTransaction(ctx, func(tx *db.Tx) error {
 		if err := s.orderRepo.SaveOrderInTx(ctx, tx, order); err != nil {
 			return fmt.Errorf("save order: %w", err)
 		}

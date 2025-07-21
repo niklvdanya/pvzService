@@ -168,7 +168,7 @@ func (w *TwoPhaseOutboxWorker) processMessage(ctx context.Context, msg domain.Ou
 }
 
 func (w *TwoPhaseOutboxWorker) moveToDLQ(ctx context.Context, msg domain.OutboxMessage) {
-	err := w.withTransaction(ctx, func(tx *db.Tx) error {
+	err := w.dbClient.WithTransaction(ctx, func(tx *db.Tx) error {
 		dlqMsg := domain.DLQMessage{
 			OriginalID: msg.ID,
 			Payload:    msg.Payload,
@@ -191,23 +191,4 @@ func (w *TwoPhaseOutboxWorker) moveToDLQ(ctx context.Context, msg domain.OutboxM
 	} else {
 		slog.Info("Message moved to DLQ", "id", msg.ID)
 	}
-}
-
-func (w *TwoPhaseOutboxWorker) withTransaction(ctx context.Context, fn func(*db.Tx) error) error {
-	tx, err := w.dbClient.BeginTx(ctx)
-	if err != nil {
-		return err
-	}
-
-	defer func() {
-		if err := tx.Rollback(); err != nil {
-			slog.Warn("Failed to rollback transaction", "error", err)
-		}
-	}()
-
-	if err = fn(tx); err != nil {
-		return err
-	}
-
-	return tx.Commit()
 }
