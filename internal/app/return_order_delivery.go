@@ -6,7 +6,6 @@ import (
 
 	"gitlab.ozon.dev/safariproxd/homework/internal/adapter/cli"
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
-	"gitlab.ozon.dev/safariproxd/homework/internal/metrics"
 	"gitlab.ozon.dev/safariproxd/homework/pkg/db"
 )
 
@@ -50,20 +49,21 @@ func (s *PVZService) ReturnOrderToDelivery(ctx context.Context, orderID uint64) 
 			Status: "returned_to_courier",
 		},
 	)
+
 	if s.dbClient == nil {
 		if err := s.orderRepo.Update(ctx, order); err != nil {
 			return fmt.Errorf("failed to update order: %w", err)
 		}
-		history := domain.OrderHistory{
-			OrderID:   order.OrderID,
-			Status:    order.Status,
-			ChangedAt: order.AcceptTime,
+
+		if err := s.orderRepo.SaveHistory(ctx, history); err != nil {
+			return fmt.Errorf("failed to save history: %w", err)
 		}
 
-		metrics.OrdersReturnedTotal.WithLabelValues("to_courier").Inc()
+		s.metricsProvider.OrdersReturned("to_courier", 1)
 		s.updateOrderStatusMetrics()
-		return s.orderRepo.SaveHistory(ctx, history)
+		return nil
 	}
+
 	return s.dbClient.WithTransaction(ctx, func(tx *db.Tx) error {
 		if err := s.orderRepo.UpdateOrderInTx(ctx, tx, order); err != nil {
 			return fmt.Errorf("update order: %w", err)
@@ -77,7 +77,7 @@ func (s *PVZService) ReturnOrderToDelivery(ctx context.Context, orderID uint64) 
 			return fmt.Errorf("save event: %w", err)
 		}
 
-		metrics.OrdersReturnedTotal.WithLabelValues("to_courier").Inc()
+		s.metricsProvider.OrdersReturned("to_courier", 1)
 		s.updateOrderStatusMetrics()
 		return nil
 	})

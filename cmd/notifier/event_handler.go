@@ -18,12 +18,14 @@ type EventHandler struct {
 	processedCount    uint64
 	telegramNotifier  *telegram.TelegramNotifier
 	lastStatisticTime time.Time
+	metricsProvider   metrics.MetricsProvider
 }
 
-func NewEventHandler(telegramNotifier *telegram.TelegramNotifier) *EventHandler {
+func NewEventHandler(telegramNotifier *telegram.TelegramNotifier, metricsProvider metrics.MetricsProvider) *EventHandler {
 	return &EventHandler{
 		telegramNotifier:  telegramNotifier,
 		lastStatisticTime: time.Now(),
+		metricsProvider:   metricsProvider,
 	}
 }
 
@@ -33,7 +35,7 @@ func (h *EventHandler) HandleMessage(ctx context.Context, message *sarama.Consum
 		errorMsg := fmt.Sprintf("failed to unmarshal event: %v", err)
 		slog.Error("Event parsing failed", "error", err, "raw_message", string(message.Value))
 
-		metrics.KafkaMessagesProcessed.WithLabelValues("error").Inc()
+		h.metricsProvider.KafkaMessageProcessed("error")
 
 		if notifyErr := h.telegramNotifier.NotifyError(ctx, errorMsg, "unknown"); notifyErr != nil {
 			slog.Error("Failed to send telegram error notification", "error", notifyErr)
@@ -46,7 +48,7 @@ func (h *EventHandler) HandleMessage(ctx context.Context, message *sarama.Consum
 		errorMsg := fmt.Sprintf("invalid event: %v", err)
 		slog.Error("Event validation failed", "error", err, "event_id", event.EventID)
 
-		metrics.KafkaMessagesProcessed.WithLabelValues("error").Inc()
+		h.metricsProvider.KafkaMessageProcessed("error")
 
 		if notifyErr := h.telegramNotifier.NotifyError(ctx, errorMsg, event.EventID); notifyErr != nil {
 			slog.Error("Failed to send telegram error notification", "error", notifyErr)
@@ -71,7 +73,7 @@ func (h *EventHandler) HandleMessage(ctx context.Context, message *sarama.Consum
 	h.logEvent(&event, message)
 	h.processedCount++
 
-	metrics.KafkaMessagesProcessed.WithLabelValues("success").Inc()
+	h.metricsProvider.KafkaMessageProcessed("success")
 
 	if h.processedCount%50 == 0 || time.Since(h.lastStatisticTime) > 10*time.Minute {
 		if err := h.telegramNotifier.NotifyStatistics(ctx, h.processedCount, event.EventType); err != nil {

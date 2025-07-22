@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
-	"gitlab.ozon.dev/safariproxd/homework/internal/metrics"
 	"gitlab.ozon.dev/safariproxd/homework/pkg/db"
 )
 
@@ -85,7 +84,7 @@ func (s *PVZService) ReturnOrdersFromClient(
 		return s.returnSingle(c, receiverID, id, now)
 	})
 
-	metrics.OrdersReturnedTotal.WithLabelValues("by_client").Add(float64(processed))
+	s.metricsProvider.OrdersReturned("by_client", processed)
 	s.updateOrderStatusMetrics()
 
 	return err

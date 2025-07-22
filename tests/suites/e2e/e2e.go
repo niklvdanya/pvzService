@@ -20,15 +20,15 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/ulule/limiter/v3"
+	"github.com/ulule/limiter/v3/drivers/store/memory"
 	server "gitlab.ozon.dev/safariproxd/homework/internal/adapter/grpc"
 	"gitlab.ozon.dev/safariproxd/homework/internal/adapter/grpc/mw"
 	"gitlab.ozon.dev/safariproxd/homework/internal/app"
+	"gitlab.ozon.dev/safariproxd/homework/internal/metrics"
 	"gitlab.ozon.dev/safariproxd/homework/internal/repository/postgres"
 	"gitlab.ozon.dev/safariproxd/homework/pkg/api"
 	dbpkg "gitlab.ozon.dev/safariproxd/homework/pkg/db"
-
-	"github.com/ulule/limiter/v3"
-	"github.com/ulule/limiter/v3/drivers/store/memory"
 )
 
 const (
@@ -104,7 +104,7 @@ func setupEnv(t *testing.T) *testEnv {
 
 	repo := postgres.NewOrderRepository(dbClient)
 	outbox := postgres.NewOutboxRepository(dbClient)
-	svc := app.NewPVZService(repo, outbox, dbClient, time.Now, 16)
+	svc := app.NewPVZService(repo, outbox, dbClient, time.Now, 16, metrics.NewNoOpProvider())
 
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)

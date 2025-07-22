@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
@@ -11,6 +10,7 @@ import (
 	"gitlab.ozon.dev/safariproxd/homework/internal/adapter/cli"
 	"gitlab.ozon.dev/safariproxd/homework/internal/app/mock"
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
+	"gitlab.ozon.dev/safariproxd/homework/internal/metrics"
 )
 
 var (
@@ -37,12 +37,11 @@ func IdsOf(ord []domain.Order) (ids []uint64) {
 }
 
 func NewEnv(t *testing.T) (*mock.OrderRepositoryMock, *PVZService) {
-	os.Setenv("TESTING", "true")
-
 	ctrl := minimock.NewController(t)
 	repo := mock.NewOrderRepositoryMock(ctrl)
 	const testWorkerLimit = 8
-	svc := &PVZService{orderRepo: repo, dbClient: nil, nowFn: func() time.Time { return someConstTime }, workerLimit: testWorkerLimit}
+	noOpMetrics := metrics.NewNoOpProvider()
+	svc := NewPVZService(repo, nil, nil, func() time.Time { return someConstTime }, testWorkerLimit, noOpMetrics)
 	return repo, svc
 }
 

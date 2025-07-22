@@ -50,6 +50,8 @@ func main() {
 	}
 	defer client.Close()
 
+	metricsProvider := metrics.NewPrometheusProvider()
+
 	var orderRepo app.OrderRepository
 	var outboxRepo app.OutboxRepository
 	var cacheManager infra.CacheManager
@@ -60,7 +62,7 @@ func main() {
 			TTL:     cfg.Cache.TTL,
 		}
 
-		cachedRepo := postgres.NewCachedOrderRepository(client, cacheConfig)
+		cachedRepo := postgres.NewCachedOrderRepository(client, cacheConfig, metricsProvider)
 		orderRepo = cachedRepo
 		cacheManager = cachedRepo
 
@@ -71,10 +73,6 @@ func main() {
 			for range ticker.C {
 				cachedRepo.CleanupExpired()
 				stats := cachedRepo.GetCacheStats()
-
-				for cacheType, size := range stats {
-					metrics.CacheSize.WithLabelValues(cacheType).Set(float64(size))
-				}
 
 				slog.Debug("Cache cleanup completed", "stats", stats)
 			}
@@ -90,7 +88,7 @@ func main() {
 	}
 
 	outboxRepo = postgres.NewOutboxRepository(client)
-	pvzService := app.NewPVZService(orderRepo, outboxRepo, client, time.Now, cfg.Service.WorkerLimit)
+	pvzService := app.NewPVZService(orderRepo, outboxRepo, client, time.Now, cfg.Service.WorkerLimit, metricsProvider)
 
 	pool := workerpool.New(cfg.Service.WorkerLimit, cfg.Service.QueueSize)
 
@@ -99,8 +97,12 @@ func main() {
 		defer ticker.Stop()
 
 		for range ticker.C {
-			metrics.WorkerPoolActive.Set(float64(pool.ActiveWorkers()))
-			metrics.WorkerPoolQueueSize.Set(float64(pool.QueueSize()))
+			metricsProvider.UpdateWorkerPoolMetrics(
+				pool.ActiveWorkers(),
+				pool.WorkerCount(),
+				pool.QueueSize(),
+				pool.QueueCapacity(),
+			)
 
 			slog.Debug("Worker pool stats",
 				"active", pool.ActiveWorkers(),
@@ -121,7 +123,7 @@ func main() {
 			mw.LoggingInterceptor(),
 			mw.ValidationInterceptor(),
 			mw.ErrorMappingInterceptor(),
-			mw.MetricsInterceptor(),
+			mw.MetricsInterceptor(metricsProvider),
 			mw.PoolInterceptor(pool),
 		),
 	)

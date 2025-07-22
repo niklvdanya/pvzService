@@ -2,6 +2,7 @@ package mw
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -83,7 +84,7 @@ func TimeoutInterceptor(timeout time.Duration) grpc.UnaryServerInterceptor {
 
 		resp, err := handler(ctx, req)
 
-		if ctx.Err() == context.DeadlineExceeded && err == nil {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			return nil, status.Error(codes.DeadlineExceeded, "service timeout")
 		}
 		return resp, err
@@ -107,7 +108,7 @@ func PoolInterceptor(pool *workerpool.Pool) grpc.UnaryServerInterceptor {
 	}
 }
 
-func MetricsInterceptor() grpc.UnaryServerInterceptor {
+func MetricsInterceptor(provider metrics.MetricsProvider) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		start := time.Now()
 
@@ -119,10 +120,7 @@ func MetricsInterceptor() grpc.UnaryServerInterceptor {
 			statusCode = status.Code(err)
 		}
 
-		metrics.GRPCDuration.WithLabelValues(
-			info.FullMethod,
-			statusCode.String(),
-		).Observe(duration)
+		provider.RecordGRPCDuration(info.FullMethod, statusCode.String(), duration)
 
 		return resp, err
 	}

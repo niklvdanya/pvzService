@@ -32,14 +32,22 @@ type OutboxRepository interface {
 }
 
 type PVZService struct {
-	orderRepo   OrderRepository
-	outboxRepo  OutboxRepository
-	dbClient    *db.Client
-	nowFn       func() time.Time
-	workerLimit int
+	orderRepo       OrderRepository
+	outboxRepo      OutboxRepository
+	dbClient        *db.Client
+	nowFn           func() time.Time
+	workerLimit     int
+	metricsProvider metrics.MetricsProvider
 }
 
-func NewPVZService(orderRepo OrderRepository, outboxRepo OutboxRepository, dbClient *db.Client, nowFn func() time.Time, limit int) *PVZService {
+func NewPVZService(
+	orderRepo OrderRepository,
+	outboxRepo OutboxRepository,
+	dbClient *db.Client,
+	nowFn func() time.Time,
+	limit int,
+	metricsProvider metrics.MetricsProvider,
+) *PVZService {
 	if nowFn == nil {
 		nowFn = time.Now
 	}
@@ -47,11 +55,12 @@ func NewPVZService(orderRepo OrderRepository, outboxRepo OutboxRepository, dbCli
 		limit = 1
 	}
 	return &PVZService{
-		orderRepo:   orderRepo,
-		outboxRepo:  outboxRepo,
-		dbClient:    dbClient,
-		nowFn:       nowFn,
-		workerLimit: limit,
+		orderRepo:       orderRepo,
+		outboxRepo:      outboxRepo,
+		dbClient:        dbClient,
+		nowFn:           nowFn,
+		workerLimit:     limit,
+		metricsProvider: metricsProvider,
 	}
 }
 

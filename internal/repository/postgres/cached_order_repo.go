@@ -16,9 +16,10 @@ type CachedOrderRepository struct {
 	receiverCache     *cache.LRUCache[string, []domain.Order]
 	historyCache      *cache.LRUCache[string, []domain.OrderHistory]
 	packageRulesCache *cache.LRUCache[string, []domain.PackageRules]
+	metricsProvider   metrics.MetricsProvider
 }
 
-func NewCachedOrderRepository(client *db.Client, cacheConfig cache.Config) *CachedOrderRepository {
+func NewCachedOrderRepository(client *db.Client, cacheConfig cache.Config, metricsProvider metrics.MetricsProvider) *CachedOrderRepository {
 	repo := NewOrderRepository(client)
 
 	return &CachedOrderRepository{
@@ -27,17 +28,18 @@ func NewCachedOrderRepository(client *db.Client, cacheConfig cache.Config) *Cach
 		receiverCache:     cache.New[string, []domain.Order](cacheConfig),
 		historyCache:      cache.New[string, []domain.OrderHistory](cacheConfig),
 		packageRulesCache: cache.New[string, []domain.PackageRules](cacheConfig),
+		metricsProvider:   metricsProvider,
 	}
 }
 
 func (r *CachedOrderRepository) Exists(ctx context.Context, orderID uint64) (bool, error) {
 	key := r.orderKey(orderID)
 	if _, found := r.orderCache.Get(key); found {
-		metrics.CacheHits.WithLabelValues("orders", "hit").Inc()
+		r.metricsProvider.RecordCacheHit("orders", "hit")
 		return true, nil
 	}
 
-	metrics.CacheHits.WithLabelValues("orders", "miss").Inc()
+	r.metricsProvider.RecordCacheHit("orders", "miss")
 	return r.repo.Exists(ctx, orderID)
 }
 
@@ -46,9 +48,7 @@ func (r *CachedOrderRepository) Save(ctx context.Context, order domain.Order) er
 		return err
 	}
 	r.invalidateOrderCaches(order.OrderID, order.ReceiverID)
-
 	r.orderCache.Set(r.orderKey(order.OrderID), order)
-
 	return nil
 }
 
@@ -56,11 +56,11 @@ func (r *CachedOrderRepository) GetByID(ctx context.Context, orderID uint64) (do
 	key := r.orderKey(orderID)
 
 	if order, found := r.orderCache.Get(key); found {
-		metrics.CacheHits.WithLabelValues("orders", "hit").Inc()
+		r.metricsProvider.RecordCacheHit("orders", "hit")
 		return order, nil
 	}
 
-	metrics.CacheHits.WithLabelValues("orders", "miss").Inc()
+	r.metricsProvider.RecordCacheHit("orders", "miss")
 	order, err := r.repo.GetByID(ctx, orderID)
 	if err != nil {
 		return order, err
@@ -76,7 +76,6 @@ func (r *CachedOrderRepository) Update(ctx context.Context, order domain.Order) 
 	}
 	r.invalidateOrderCaches(order.OrderID, order.ReceiverID)
 	r.orderCache.Set(r.orderKey(order.OrderID), order)
-
 	return nil
 }
 
@@ -84,11 +83,11 @@ func (r *CachedOrderRepository) GetByReceiverID(ctx context.Context, receiverID 
 	key := r.receiverKey(receiverID)
 
 	if orders, found := r.receiverCache.Get(key); found {
-		metrics.CacheHits.WithLabelValues("receivers", "hit").Inc()
+		r.metricsProvider.RecordCacheHit("receivers", "hit")
 		return orders, nil
 	}
 
-	metrics.CacheHits.WithLabelValues("receivers", "miss").Inc()
+	r.metricsProvider.RecordCacheHit("receivers", "miss")
 	orders, err := r.repo.GetByReceiverID(ctx, receiverID)
 	if err != nil {
 		return orders, err
@@ -102,11 +101,11 @@ func (r *CachedOrderRepository) GetReturnedOrders(ctx context.Context) ([]domain
 	key := "returned_orders"
 
 	if orders, found := r.receiverCache.Get(key); found {
-		metrics.CacheHits.WithLabelValues("receivers", "hit").Inc()
+		r.metricsProvider.RecordCacheHit("receivers", "hit")
 		return orders, nil
 	}
 
-	metrics.CacheHits.WithLabelValues("receivers", "miss").Inc()
+	r.metricsProvider.RecordCacheHit("receivers", "miss")
 	orders, err := r.repo.GetReturnedOrders(ctx)
 	if err != nil {
 		return orders, err
@@ -120,11 +119,11 @@ func (r *CachedOrderRepository) GetAllOrders(ctx context.Context) ([]domain.Orde
 	key := "all_orders"
 
 	if orders, found := r.receiverCache.Get(key); found {
-		metrics.CacheHits.WithLabelValues("receivers", "hit").Inc()
+		r.metricsProvider.RecordCacheHit("receivers", "hit")
 		return orders, nil
 	}
 
-	metrics.CacheHits.WithLabelValues("receivers", "miss").Inc()
+	r.metricsProvider.RecordCacheHit("receivers", "miss")
 	orders, err := r.repo.GetAllOrders(ctx)
 	if err != nil {
 		return orders, err
@@ -138,11 +137,11 @@ func (r *CachedOrderRepository) GetPackageRules(ctx context.Context, code string
 	key := fmt.Sprintf("package_rules:%s", code)
 
 	if rules, found := r.packageRulesCache.Get(key); found {
-		metrics.CacheHits.WithLabelValues("package_rules", "hit").Inc()
+		r.metricsProvider.RecordCacheHit("package_rules", "hit")
 		return rules, nil
 	}
 
-	metrics.CacheHits.WithLabelValues("package_rules", "miss").Inc()
+	r.metricsProvider.RecordCacheHit("package_rules", "miss")
 	rules, err := r.repo.GetPackageRules(ctx, code)
 	if err != nil {
 		return rules, err
@@ -157,7 +156,6 @@ func (r *CachedOrderRepository) SaveHistory(ctx context.Context, history domain.
 		return err
 	}
 	r.historyCache.Delete(r.historyKey(history.OrderID))
-
 	return nil
 }
 
@@ -165,11 +163,11 @@ func (r *CachedOrderRepository) GetHistoryByOrderID(ctx context.Context, orderID
 	key := r.historyKey(orderID)
 
 	if history, found := r.historyCache.Get(key); found {
-		metrics.CacheHits.WithLabelValues("history", "hit").Inc()
+		r.metricsProvider.RecordCacheHit("history", "hit")
 		return history, nil
 	}
 
-	metrics.CacheHits.WithLabelValues("history", "miss").Inc()
+	r.metricsProvider.RecordCacheHit("history", "miss")
 	history, err := r.repo.GetHistoryByOrderID(ctx, orderID)
 	if err != nil {
 		return history, err
@@ -183,9 +181,7 @@ func (r *CachedOrderRepository) SaveOrderInTx(ctx context.Context, tx *db.Tx, or
 	if err := r.repo.SaveOrderInTx(ctx, tx, order); err != nil {
 		return err
 	}
-
 	r.invalidateOrderCaches(order.OrderID, order.ReceiverID)
-
 	return nil
 }
 
@@ -224,12 +220,16 @@ func (r *CachedOrderRepository) ClearCache() {
 }
 
 func (r *CachedOrderRepository) GetCacheStats() map[string]int {
-	return map[string]int{
+	stats := map[string]int{
 		"orders":        r.orderCache.Size(),
 		"receivers":     r.receiverCache.Size(),
 		"history":       r.historyCache.Size(),
 		"package_rules": r.packageRulesCache.Size(),
 	}
+
+	r.metricsProvider.UpdateCacheMetrics(stats)
+
+	return stats
 }
 
 func (r *CachedOrderRepository) orderKey(orderID uint64) string {
