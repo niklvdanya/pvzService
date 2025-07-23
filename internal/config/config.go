@@ -57,7 +57,13 @@ type Config struct {
 		WorkerInterval time.Duration `yaml:"worker_interval"`
 		BatchSize      int           `yaml:"batch_size"`
 	} `yaml:"outbox"`
+
 	Telegram telegram.TelegramConfig `yaml:"telegram"`
+
+	Tracing struct {
+		Enabled  bool   `yaml:"enabled"`
+		Endpoint string `yaml:"endpoint" env:"OTEL_EXPORTER_OTLP_ENDPOINT"`
+	} `yaml:"tracing"`
 }
 
 func (c *Config) ReadDSN() string {
@@ -97,5 +103,8 @@ func Load(path string) (*Config, error) {
 		cfg.Cache.CleanupInterval = 10 * time.Minute
 	}
 
+	if cfg.Tracing.Endpoint == "" {
+		cfg.Tracing.Endpoint = "http://jaeger:4318"
+	}
 	return &cfg, nil
 }

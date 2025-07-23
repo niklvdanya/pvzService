@@ -55,7 +55,7 @@ func main() {
 
 	ctx := context.Background()
 	ticker := time.NewTicker(cfg.Outbox.WorkerInterval)
-	dlqTicker := time.NewTicker(5 * time.Minute) // DLQ every 5 minutes
+	dlqTicker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 	defer dlqTicker.Stop()
 

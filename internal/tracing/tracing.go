@@ -3,7 +3,6 @@ package tracing
 import (
 	"context"
 	"log/slog"
-	"os"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -14,32 +13,27 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
 )
 
-const serviceName = "pvz-service"
-
-func InitTracing() func() {
-	otlpHost := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
-	if otlpHost == "" {
-		otlpHost = "localhost:4318"
+func InitTracing(ctx context.Context, enabled bool, endpoint string) func() {
+	if !enabled {
+		slog.Info("Tracing disabled")
+		return func() {}
 	}
 
-	slog.Info("Initializing tracing", "otlp_host", otlpHost)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	slog.Info("Initializing tracing", "endpoint", endpoint)
 
 	exporter, err := otlptracehttp.New(ctx,
-		otlptracehttp.WithEndpoint(otlpHost),
+		otlptracehttp.WithEndpoint(endpoint),
 		otlptracehttp.WithInsecure(),
 		otlptracehttp.WithTimeout(5*time.Second),
 	)
 	if err != nil {
-		slog.Error("Failed to create OTLP exporter", "error", err, "endpoint", otlpHost)
+		slog.Error("Failed to create OTLP exporter", "error", err, "endpoint", endpoint)
 		return func() {}
 	}
 
-	res, err := resource.New(context.Background(),
+	res, err := resource.New(ctx,
 		resource.WithAttributes(
-			semconv.ServiceName(serviceName),
+			semconv.ServiceName("pvz-service"),
 			semconv.ServiceVersion("1.0.0"),
 		),
 	)
@@ -58,16 +52,15 @@ func InitTracing() func() {
 	)
 
 	otel.SetTracerProvider(tp)
-
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
 		propagation.TraceContext{},
 		propagation.Baggage{},
 	))
 
-	slog.Info("Tracing initialized successfully", "endpoint", "http://"+otlpHost)
+	slog.Info("Tracing initialized successfully", "endpoint", endpoint)
 
 	return func() {
-		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		shutdownCtx, shutdownCancel := context.WithTimeout(ctx, 5*time.Second)
 		defer shutdownCancel()
 		if err := tp.Shutdown(shutdownCtx); err != nil {
 			slog.Error("Error shutting down tracer provider", "error", err)

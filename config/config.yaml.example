@@ -41,7 +41,11 @@ outbox:
 
 telegram:
   bot_token: "API"
-  chat_id: 0 // получать через @userinfobot
+  chat_id: 0 # получать через @userinfobot
   enabled: true
   timeout: 10s
   retry_attempts: 3
+
+tracing:
+  enabled: true
+  endpoint: "http://jaeger:4318"

@@ -88,7 +88,7 @@ func (s *PVZService) IssueOrdersToClient(
 	})
 
 	s.metricsProvider.OrdersIssued(processed)
-	s.updateOrderStatusMetrics()
+	s.metricsProvider.RefreshOrderStatusMetrics(s.orderRepo)
 
 	return err
 }

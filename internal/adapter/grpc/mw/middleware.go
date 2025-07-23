@@ -84,7 +84,7 @@ func TimeoutInterceptor(timeout time.Duration) grpc.UnaryServerInterceptor {
 
 		resp, err := handler(ctx, req)
 
-		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) && err == nil {
 			return nil, status.Error(codes.DeadlineExceeded, "service timeout")
 		}
 		return resp, err

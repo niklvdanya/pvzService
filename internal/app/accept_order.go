@@ -75,7 +75,7 @@ func (s *PVZService) AcceptOrder(ctx context.Context, req domain.AcceptOrderRequ
 		}
 
 		s.metricsProvider.OrderAccepted()
-		s.updateOrderStatusMetrics()
+		s.metricsProvider.RefreshOrderStatusMetrics(s.orderRepo)
 
 		return totalPrice, nil
 	}
@@ -101,7 +101,7 @@ func (s *PVZService) AcceptOrder(ctx context.Context, req domain.AcceptOrderRequ
 	}
 
 	s.metricsProvider.OrderAccepted()
-	s.updateOrderStatusMetrics()
+	s.metricsProvider.RefreshOrderStatusMetrics(s.orderRepo)
 
 	return totalPrice, nil
 }

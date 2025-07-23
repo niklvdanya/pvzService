@@ -60,7 +60,7 @@ func (s *PVZService) ReturnOrderToDelivery(ctx context.Context, orderID uint64) 
 		}
 
 		s.metricsProvider.OrdersReturned("to_courier", 1)
-		s.updateOrderStatusMetrics()
+		s.metricsProvider.RefreshOrderStatusMetrics(s.orderRepo)
 		return nil
 	}
 
@@ -78,7 +78,7 @@ func (s *PVZService) ReturnOrderToDelivery(ctx context.Context, orderID uint64) 
 		}
 
 		s.metricsProvider.OrdersReturned("to_courier", 1)
-		s.updateOrderStatusMetrics()
+		s.metricsProvider.RefreshOrderStatusMetrics(s.orderRepo)
 		return nil
 	})
 }

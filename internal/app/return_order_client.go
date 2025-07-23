@@ -85,7 +85,7 @@ func (s *PVZService) ReturnOrdersFromClient(
 	})
 
 	s.metricsProvider.OrdersReturned("by_client", processed)
-	s.updateOrderStatusMetrics()
+	s.metricsProvider.RefreshOrderStatusMetrics(s.orderRepo)
 
 	return err
 }

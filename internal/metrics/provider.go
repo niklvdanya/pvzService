@@ -1,5 +1,16 @@
 package metrics
 
+import (
+	"context"
+	"time"
+
+	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
+)
+
+type OrderRepository interface {
+	GetAllOrders(ctx context.Context) ([]domain.Order, error)
+}
+
 type MetricsProvider interface {
 	OrderAccepted()
 	OrdersIssued(count uint64)
@@ -14,6 +25,8 @@ type MetricsProvider interface {
 
 	UpdateCacheMetrics(stats map[string]int)
 	RecordCacheHit(cacheType, result string)
+
+	RefreshOrderStatusMetrics(repo OrderRepository)
 }
 
 type PrometheusProvider struct{}
@@ -63,6 +76,25 @@ func (p *PrometheusProvider) RecordCacheHit(cacheType, result string) {
 	CacheHits.WithLabelValues(cacheType, result).Inc()
 }
 
+func (p *PrometheusProvider) RefreshOrderStatusMetrics(repo OrderRepository) {
+	go func() {
+		metricsCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		orders, err := repo.GetAllOrders(metricsCtx)
+		if err != nil {
+			return
+		}
+
+		statusCounts := make(map[string]int)
+		for _, order := range orders {
+			statusCounts[order.GetStatusString()]++
+		}
+
+		p.UpdateOrderStatusMetrics(statusCounts)
+	}()
+}
+
 type NoOpProvider struct{}
 
 func NewNoOpProvider() *NoOpProvider {
@@ -78,3 +110,4 @@ func (p *NoOpProvider) UpdateWorkerPoolMetrics(active, total, queueSize, queueCa
 func (p *NoOpProvider) KafkaMessageProcessed(status string)                                 {}
 func (p *NoOpProvider) UpdateCacheMetrics(stats map[string]int)                             {}
 func (p *NoOpProvider) RecordCacheHit(cacheType, result string)                             {}
+func (p *NoOpProvider) RefreshOrderStatusMetrics(repo OrderRepository)                      {}

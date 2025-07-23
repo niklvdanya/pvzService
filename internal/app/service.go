@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"os"
 	"sync/atomic"
 	"time"
 
@@ -119,29 +118,4 @@ func processConcurrently[T any](
 
 	err := g.Wait()
 	return processed, err
-}
-
-func (s *PVZService) updateOrderStatusMetrics() {
-	if os.Getenv("TESTING") == "true" {
-		return
-	}
-
-	go func() {
-		metricsCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
-		orders, err := s.orderRepo.GetAllOrders(metricsCtx)
-		if err != nil {
-			return
-		}
-
-		statusCounts := make(map[string]int)
-		for _, order := range orders {
-			statusCounts[order.GetStatusString()]++
-		}
-
-		for status, count := range statusCounts {
-			metrics.OrdersByStatus.WithLabelValues(status).Set(float64(count))
-		}
-	}()
 }

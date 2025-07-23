@@ -28,15 +28,14 @@ import (
 )
 
 func main() {
-	shutdownTracing := tracing.InitTracing()
-	defer shutdownTracing()
-
 	cfg, err := config.Load("config/config.yaml")
 	if err != nil {
 		slog.Error("Config load failed", "error", err)
 		os.Exit(1)
 	}
-
+	ctx := context.Background()
+	shutdownTracing := tracing.InitTracing(ctx, cfg.Tracing.Enabled, cfg.Tracing.Endpoint)
+	defer shutdownTracing()
 	dbCfg := db.Config{
 		ReadDSN:  cfg.ReadDSN(),
 		WriteDSN: cfg.WriteDSN(),
