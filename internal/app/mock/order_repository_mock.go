@@ -12,9 +12,10 @@ import (
 
 	"github.com/gojuno/minimock/v3"
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
+	"gitlab.ozon.dev/safariproxd/homework/pkg/db"
 )
 
-// OrderRepositoryMock implements mm_app.OrderRepository
+// OrderRepositoryMock implements OrderRepository
 type OrderRepositoryMock struct {
 	t          minimock.Tester
 	finishOnce sync.Once
@@ -75,15 +76,36 @@ type OrderRepositoryMock struct {
 	beforeSaveHistoryCounter uint64
 	SaveHistoryMock          mOrderRepositoryMockSaveHistory
 
+	funcSaveHistoryInTx          func(ctx context.Context, tx *db.Tx, history domain.OrderHistory) (err error)
+	funcSaveHistoryInTxOrigin    string
+	inspectFuncSaveHistoryInTx   func(ctx context.Context, tx *db.Tx, history domain.OrderHistory)
+	afterSaveHistoryInTxCounter  uint64
+	beforeSaveHistoryInTxCounter uint64
+	SaveHistoryInTxMock          mOrderRepositoryMockSaveHistoryInTx
+
+	funcSaveOrderInTx          func(ctx context.Context, tx *db.Tx, order domain.Order) (err error)
+	funcSaveOrderInTxOrigin    string
+	inspectFuncSaveOrderInTx   func(ctx context.Context, tx *db.Tx, order domain.Order)
+	afterSaveOrderInTxCounter  uint64
+	beforeSaveOrderInTxCounter uint64
+	SaveOrderInTxMock          mOrderRepositoryMockSaveOrderInTx
+
 	funcUpdate          func(ctx context.Context, order domain.Order) (err error)
 	funcUpdateOrigin    string
 	inspectFuncUpdate   func(ctx context.Context, order domain.Order)
 	afterUpdateCounter  uint64
 	beforeUpdateCounter uint64
 	UpdateMock          mOrderRepositoryMockUpdate
+
+	funcUpdateOrderInTx          func(ctx context.Context, tx *db.Tx, order domain.Order) (err error)
+	funcUpdateOrderInTxOrigin    string
+	inspectFuncUpdateOrderInTx   func(ctx context.Context, tx *db.Tx, order domain.Order)
+	afterUpdateOrderInTxCounter  uint64
+	beforeUpdateOrderInTxCounter uint64
+	UpdateOrderInTxMock          mOrderRepositoryMockUpdateOrderInTx
 }
 
-// NewOrderRepositoryMock returns a mock for mm_app.OrderRepository
+// NewOrderRepositoryMock returns a mock for OrderRepository
 func NewOrderRepositoryMock(t minimock.Tester) *OrderRepositoryMock {
 	m := &OrderRepositoryMock{t: t}
 
@@ -115,8 +137,17 @@ func NewOrderRepositoryMock(t minimock.Tester) *OrderRepositoryMock {
 	m.SaveHistoryMock = mOrderRepositoryMockSaveHistory{mock: m}
 	m.SaveHistoryMock.callArgs = []*OrderRepositoryMockSaveHistoryParams{}
 
+	m.SaveHistoryInTxMock = mOrderRepositoryMockSaveHistoryInTx{mock: m}
+	m.SaveHistoryInTxMock.callArgs = []*OrderRepositoryMockSaveHistoryInTxParams{}
+
+	m.SaveOrderInTxMock = mOrderRepositoryMockSaveOrderInTx{mock: m}
+	m.SaveOrderInTxMock.callArgs = []*OrderRepositoryMockSaveOrderInTxParams{}
+
 	m.UpdateMock = mOrderRepositoryMockUpdate{mock: m}
 	m.UpdateMock.callArgs = []*OrderRepositoryMockUpdateParams{}
+
+	m.UpdateOrderInTxMock = mOrderRepositoryMockUpdateOrderInTx{mock: m}
+	m.UpdateOrderInTxMock.callArgs = []*OrderRepositoryMockUpdateOrderInTxParams{}
 
 	t.Cleanup(m.MinimockFinish)
 
@@ -310,7 +341,7 @@ func (mmGetAllOrders *mOrderRepositoryMockGetAllOrders) invocationsDone() bool {
 	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
 }
 
-// GetAllOrders implements mm_app.OrderRepository
+// GetAllOrders implements OrderRepository
 func (mmGetAllOrders *OrderRepositoryMock) GetAllOrders(ctx context.Context) (oa1 []domain.Order, err error) {
 	mm_atomic.AddUint64(&mmGetAllOrders.beforeGetAllOrdersCounter, 1)
 	defer mm_atomic.AddUint64(&mmGetAllOrders.afterGetAllOrdersCounter, 1)
@@ -648,7 +679,7 @@ func (mmGetByID *mOrderRepositoryMockGetByID) invocationsDone() bool {
 	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
 }
 
-// GetByID implements mm_app.OrderRepository
+// GetByID implements OrderRepository
 func (mmGetByID *OrderRepositoryMock) GetByID(ctx context.Context, orderID uint64) (o1 domain.Order, err error) {
 	mm_atomic.AddUint64(&mmGetByID.beforeGetByIDCounter, 1)
 	defer mm_atomic.AddUint64(&mmGetByID.afterGetByIDCounter, 1)
@@ -991,7 +1022,7 @@ func (mmGetByReceiverID *mOrderRepositoryMockGetByReceiverID) invocationsDone() 
 	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
 }
 
-// GetByReceiverID implements mm_app.OrderRepository
+// GetByReceiverID implements OrderRepository
 func (mmGetByReceiverID *OrderRepositoryMock) GetByReceiverID(ctx context.Context, receiverID uint64) (oa1 []domain.Order, err error) {
 	mm_atomic.AddUint64(&mmGetByReceiverID.beforeGetByReceiverIDCounter, 1)
 	defer mm_atomic.AddUint64(&mmGetByReceiverID.afterGetByReceiverIDCounter, 1)
@@ -1334,7 +1365,7 @@ func (mmGetHistoryByOrderID *mOrderRepositoryMockGetHistoryByOrderID) invocation
 	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
 }
 
-// GetHistoryByOrderID implements mm_app.OrderRepository
+// GetHistoryByOrderID implements OrderRepository
 func (mmGetHistoryByOrderID *OrderRepositoryMock) GetHistoryByOrderID(ctx context.Context, orderID uint64) (oa1 []domain.OrderHistory, err error) {
 	mm_atomic.AddUint64(&mmGetHistoryByOrderID.beforeGetHistoryByOrderIDCounter, 1)
 	defer mm_atomic.AddUint64(&mmGetHistoryByOrderID.afterGetHistoryByOrderIDCounter, 1)
@@ -1677,7 +1708,7 @@ func (mmGetPackageRules *mOrderRepositoryMockGetPackageRules) invocationsDone() 
 	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
 }
 
-// GetPackageRules implements mm_app.OrderRepository
+// GetPackageRules implements OrderRepository
 func (mmGetPackageRules *OrderRepositoryMock) GetPackageRules(ctx context.Context, code string) (pa1 []domain.PackageRules, err error) {
 	mm_atomic.AddUint64(&mmGetPackageRules.beforeGetPackageRulesCounter, 1)
 	defer mm_atomic.AddUint64(&mmGetPackageRules.afterGetPackageRulesCounter, 1)
@@ -1994,7 +2025,7 @@ func (mmGetReturnedOrders *mOrderRepositoryMockGetReturnedOrders) invocationsDon
 	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
 }
 
-// GetReturnedOrders implements mm_app.OrderRepository
+// GetReturnedOrders implements OrderRepository
 func (mmGetReturnedOrders *OrderRepositoryMock) GetReturnedOrders(ctx context.Context) (oa1 []domain.Order, err error) {
 	mm_atomic.AddUint64(&mmGetReturnedOrders.beforeGetReturnedOrdersCounter, 1)
 	defer mm_atomic.AddUint64(&mmGetReturnedOrders.afterGetReturnedOrdersCounter, 1)
@@ -2331,7 +2362,7 @@ func (mmSave *mOrderRepositoryMockSave) invocationsDone() bool {
 	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
 }
 
-// Save implements mm_app.OrderRepository
+// Save implements OrderRepository
 func (mmSave *OrderRepositoryMock) Save(ctx context.Context, order domain.Order) (err error) {
 	mm_atomic.AddUint64(&mmSave.beforeSaveCounter, 1)
 	defer mm_atomic.AddUint64(&mmSave.afterSaveCounter, 1)
@@ -2673,7 +2704,7 @@ func (mmSaveHistory *mOrderRepositoryMockSaveHistory) invocationsDone() bool {
 	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
 }
 
-// SaveHistory implements mm_app.OrderRepository
+// SaveHistory implements OrderRepository
 func (mmSaveHistory *OrderRepositoryMock) SaveHistory(ctx context.Context, history domain.OrderHistory) (err error) {
 	mm_atomic.AddUint64(&mmSaveHistory.beforeSaveHistoryCounter, 1)
 	defer mm_atomic.AddUint64(&mmSaveHistory.afterSaveHistoryCounter, 1)
@@ -2800,6 +2831,752 @@ func (m *OrderRepositoryMock) MinimockSaveHistoryInspect() {
 	if !m.SaveHistoryMock.invocationsDone() && afterSaveHistoryCounter > 0 {
 		m.t.Errorf("Expected %d calls to OrderRepositoryMock.SaveHistory at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.SaveHistoryMock.expectedInvocations), m.SaveHistoryMock.expectedInvocationsOrigin, afterSaveHistoryCounter)
+	}
+}
+
+type mOrderRepositoryMockSaveHistoryInTx struct {
+	optional           bool
+	mock               *OrderRepositoryMock
+	defaultExpectation *OrderRepositoryMockSaveHistoryInTxExpectation
+	expectations       []*OrderRepositoryMockSaveHistoryInTxExpectation
+
+	callArgs []*OrderRepositoryMockSaveHistoryInTxParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// OrderRepositoryMockSaveHistoryInTxExpectation specifies expectation struct of the OrderRepository.SaveHistoryInTx
+type OrderRepositoryMockSaveHistoryInTxExpectation struct {
+	mock               *OrderRepositoryMock
+	params             *OrderRepositoryMockSaveHistoryInTxParams
+	paramPtrs          *OrderRepositoryMockSaveHistoryInTxParamPtrs
+	expectationOrigins OrderRepositoryMockSaveHistoryInTxExpectationOrigins
+	results            *OrderRepositoryMockSaveHistoryInTxResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// OrderRepositoryMockSaveHistoryInTxParams contains parameters of the OrderRepository.SaveHistoryInTx
+type OrderRepositoryMockSaveHistoryInTxParams struct {
+	ctx     context.Context
+	tx      *db.Tx
+	history domain.OrderHistory
+}
+
+// OrderRepositoryMockSaveHistoryInTxParamPtrs contains pointers to parameters of the OrderRepository.SaveHistoryInTx
+type OrderRepositoryMockSaveHistoryInTxParamPtrs struct {
+	ctx     *context.Context
+	tx      **db.Tx
+	history *domain.OrderHistory
+}
+
+// OrderRepositoryMockSaveHistoryInTxResults contains results of the OrderRepository.SaveHistoryInTx
+type OrderRepositoryMockSaveHistoryInTxResults struct {
+	err error
+}
+
+// OrderRepositoryMockSaveHistoryInTxOrigins contains origins of expectations of the OrderRepository.SaveHistoryInTx
+type OrderRepositoryMockSaveHistoryInTxExpectationOrigins struct {
+	origin        string
+	originCtx     string
+	originTx      string
+	originHistory string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmSaveHistoryInTx *mOrderRepositoryMockSaveHistoryInTx) Optional() *mOrderRepositoryMockSaveHistoryInTx {
+	mmSaveHistoryInTx.optional = true
+	return mmSaveHistoryInTx
+}
+
+// Expect sets up expected params for OrderRepository.SaveHistoryInTx
+func (mmSaveHistoryInTx *mOrderRepositoryMockSaveHistoryInTx) Expect(ctx context.Context, tx *db.Tx, history domain.OrderHistory) *mOrderRepositoryMockSaveHistoryInTx {
+	if mmSaveHistoryInTx.mock.funcSaveHistoryInTx != nil {
+		mmSaveHistoryInTx.mock.t.Fatalf("OrderRepositoryMock.SaveHistoryInTx mock is already set by Set")
+	}
+
+	if mmSaveHistoryInTx.defaultExpectation == nil {
+		mmSaveHistoryInTx.defaultExpectation = &OrderRepositoryMockSaveHistoryInTxExpectation{}
+	}
+
+	if mmSaveHistoryInTx.defaultExpectation.paramPtrs != nil {
+		mmSaveHistoryInTx.mock.t.Fatalf("OrderRepositoryMock.SaveHistoryInTx mock is already set by ExpectParams functions")
+	}
+
+	mmSaveHistoryInTx.defaultExpectation.params = &OrderRepositoryMockSaveHistoryInTxParams{ctx, tx, history}
+	mmSaveHistoryInTx.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmSaveHistoryInTx.expectations {
+		if minimock.Equal(e.params, mmSaveHistoryInTx.defaultExpectation.params) {
+			mmSaveHistoryInTx.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmSaveHistoryInTx.defaultExpectation.params)
+		}
+	}
+
+	return mmSaveHistoryInTx
+}
+
+// ExpectCtxParam1 sets up expected param ctx for OrderRepository.SaveHistoryInTx
+func (mmSaveHistoryInTx *mOrderRepositoryMockSaveHistoryInTx) ExpectCtxParam1(ctx context.Context) *mOrderRepositoryMockSaveHistoryInTx {
+	if mmSaveHistoryInTx.mock.funcSaveHistoryInTx != nil {
+		mmSaveHistoryInTx.mock.t.Fatalf("OrderRepositoryMock.SaveHistoryInTx mock is already set by Set")
+	}
+
+	if mmSaveHistoryInTx.defaultExpectation == nil {
+		mmSaveHistoryInTx.defaultExpectation = &OrderRepositoryMockSaveHistoryInTxExpectation{}
+	}
+
+	if mmSaveHistoryInTx.defaultExpectation.params != nil {
+		mmSaveHistoryInTx.mock.t.Fatalf("OrderRepositoryMock.SaveHistoryInTx mock is already set by Expect")
+	}
+
+	if mmSaveHistoryInTx.defaultExpectation.paramPtrs == nil {
+		mmSaveHistoryInTx.defaultExpectation.paramPtrs = &OrderRepositoryMockSaveHistoryInTxParamPtrs{}
+	}
+	mmSaveHistoryInTx.defaultExpectation.paramPtrs.ctx = &ctx
+	mmSaveHistoryInTx.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmSaveHistoryInTx
+}
+
+// ExpectTxParam2 sets up expected param tx for OrderRepository.SaveHistoryInTx
+func (mmSaveHistoryInTx *mOrderRepositoryMockSaveHistoryInTx) ExpectTxParam2(tx *db.Tx) *mOrderRepositoryMockSaveHistoryInTx {
+	if mmSaveHistoryInTx.mock.funcSaveHistoryInTx != nil {
+		mmSaveHistoryInTx.mock.t.Fatalf("OrderRepositoryMock.SaveHistoryInTx mock is already set by Set")
+	}
+
+	if mmSaveHistoryInTx.defaultExpectation == nil {
+		mmSaveHistoryInTx.defaultExpectation = &OrderRepositoryMockSaveHistoryInTxExpectation{}
+	}
+
+	if mmSaveHistoryInTx.defaultExpectation.params != nil {
+		mmSaveHistoryInTx.mock.t.Fatalf("OrderRepositoryMock.SaveHistoryInTx mock is already set by Expect")
+	}
+
+	if mmSaveHistoryInTx.defaultExpectation.paramPtrs == nil {
+		mmSaveHistoryInTx.defaultExpectation.paramPtrs = &OrderRepositoryMockSaveHistoryInTxParamPtrs{}
+	}
+	mmSaveHistoryInTx.defaultExpectation.paramPtrs.tx = &tx
+	mmSaveHistoryInTx.defaultExpectation.expectationOrigins.originTx = minimock.CallerInfo(1)
+
+	return mmSaveHistoryInTx
+}
+
+// ExpectHistoryParam3 sets up expected param history for OrderRepository.SaveHistoryInTx
+func (mmSaveHistoryInTx *mOrderRepositoryMockSaveHistoryInTx) ExpectHistoryParam3(history domain.OrderHistory) *mOrderRepositoryMockSaveHistoryInTx {
+	if mmSaveHistoryInTx.mock.funcSaveHistoryInTx != nil {
+		mmSaveHistoryInTx.mock.t.Fatalf("OrderRepositoryMock.SaveHistoryInTx mock is already set by Set")
+	}
+
+	if mmSaveHistoryInTx.defaultExpectation == nil {
+		mmSaveHistoryInTx.defaultExpectation = &OrderRepositoryMockSaveHistoryInTxExpectation{}
+	}
+
+	if mmSaveHistoryInTx.defaultExpectation.params != nil {
+		mmSaveHistoryInTx.mock.t.Fatalf("OrderRepositoryMock.SaveHistoryInTx mock is already set by Expect")
+	}
+
+	if mmSaveHistoryInTx.defaultExpectation.paramPtrs == nil {
+		mmSaveHistoryInTx.defaultExpectation.paramPtrs = &OrderRepositoryMockSaveHistoryInTxParamPtrs{}
+	}
+	mmSaveHistoryInTx.defaultExpectation.paramPtrs.history = &history
+	mmSaveHistoryInTx.defaultExpectation.expectationOrigins.originHistory = minimock.CallerInfo(1)
+
+	return mmSaveHistoryInTx
+}
+
+// Inspect accepts an inspector function that has same arguments as the OrderRepository.SaveHistoryInTx
+func (mmSaveHistoryInTx *mOrderRepositoryMockSaveHistoryInTx) Inspect(f func(ctx context.Context, tx *db.Tx, history domain.OrderHistory)) *mOrderRepositoryMockSaveHistoryInTx {
+	if mmSaveHistoryInTx.mock.inspectFuncSaveHistoryInTx != nil {
+		mmSaveHistoryInTx.mock.t.Fatalf("Inspect function is already set for OrderRepositoryMock.SaveHistoryInTx")
+	}
+
+	mmSaveHistoryInTx.mock.inspectFuncSaveHistoryInTx = f
+
+	return mmSaveHistoryInTx
+}
+
+// Return sets up results that will be returned by OrderRepository.SaveHistoryInTx
+func (mmSaveHistoryInTx *mOrderRepositoryMockSaveHistoryInTx) Return(err error) *OrderRepositoryMock {
+	if mmSaveHistoryInTx.mock.funcSaveHistoryInTx != nil {
+		mmSaveHistoryInTx.mock.t.Fatalf("OrderRepositoryMock.SaveHistoryInTx mock is already set by Set")
+	}
+
+	if mmSaveHistoryInTx.defaultExpectation == nil {
+		mmSaveHistoryInTx.defaultExpectation = &OrderRepositoryMockSaveHistoryInTxExpectation{mock: mmSaveHistoryInTx.mock}
+	}
+	mmSaveHistoryInTx.defaultExpectation.results = &OrderRepositoryMockSaveHistoryInTxResults{err}
+	mmSaveHistoryInTx.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmSaveHistoryInTx.mock
+}
+
+// Set uses given function f to mock the OrderRepository.SaveHistoryInTx method
+func (mmSaveHistoryInTx *mOrderRepositoryMockSaveHistoryInTx) Set(f func(ctx context.Context, tx *db.Tx, history domain.OrderHistory) (err error)) *OrderRepositoryMock {
+	if mmSaveHistoryInTx.defaultExpectation != nil {
+		mmSaveHistoryInTx.mock.t.Fatalf("Default expectation is already set for the OrderRepository.SaveHistoryInTx method")
+	}
+
+	if len(mmSaveHistoryInTx.expectations) > 0 {
+		mmSaveHistoryInTx.mock.t.Fatalf("Some expectations are already set for the OrderRepository.SaveHistoryInTx method")
+	}
+
+	mmSaveHistoryInTx.mock.funcSaveHistoryInTx = f
+	mmSaveHistoryInTx.mock.funcSaveHistoryInTxOrigin = minimock.CallerInfo(1)
+	return mmSaveHistoryInTx.mock
+}
+
+// When sets expectation for the OrderRepository.SaveHistoryInTx which will trigger the result defined by the following
+// Then helper
+func (mmSaveHistoryInTx *mOrderRepositoryMockSaveHistoryInTx) When(ctx context.Context, tx *db.Tx, history domain.OrderHistory) *OrderRepositoryMockSaveHistoryInTxExpectation {
+	if mmSaveHistoryInTx.mock.funcSaveHistoryInTx != nil {
+		mmSaveHistoryInTx.mock.t.Fatalf("OrderRepositoryMock.SaveHistoryInTx mock is already set by Set")
+	}
+
+	expectation := &OrderRepositoryMockSaveHistoryInTxExpectation{
+		mock:               mmSaveHistoryInTx.mock,
+		params:             &OrderRepositoryMockSaveHistoryInTxParams{ctx, tx, history},
+		expectationOrigins: OrderRepositoryMockSaveHistoryInTxExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmSaveHistoryInTx.expectations = append(mmSaveHistoryInTx.expectations, expectation)
+	return expectation
+}
+
+// Then sets up OrderRepository.SaveHistoryInTx return parameters for the expectation previously defined by the When method
+func (e *OrderRepositoryMockSaveHistoryInTxExpectation) Then(err error) *OrderRepositoryMock {
+	e.results = &OrderRepositoryMockSaveHistoryInTxResults{err}
+	return e.mock
+}
+
+// Times sets number of times OrderRepository.SaveHistoryInTx should be invoked
+func (mmSaveHistoryInTx *mOrderRepositoryMockSaveHistoryInTx) Times(n uint64) *mOrderRepositoryMockSaveHistoryInTx {
+	if n == 0 {
+		mmSaveHistoryInTx.mock.t.Fatalf("Times of OrderRepositoryMock.SaveHistoryInTx mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmSaveHistoryInTx.expectedInvocations, n)
+	mmSaveHistoryInTx.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmSaveHistoryInTx
+}
+
+func (mmSaveHistoryInTx *mOrderRepositoryMockSaveHistoryInTx) invocationsDone() bool {
+	if len(mmSaveHistoryInTx.expectations) == 0 && mmSaveHistoryInTx.defaultExpectation == nil && mmSaveHistoryInTx.mock.funcSaveHistoryInTx == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmSaveHistoryInTx.mock.afterSaveHistoryInTxCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmSaveHistoryInTx.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// SaveHistoryInTx implements OrderRepository
+func (mmSaveHistoryInTx *OrderRepositoryMock) SaveHistoryInTx(ctx context.Context, tx *db.Tx, history domain.OrderHistory) (err error) {
+	mm_atomic.AddUint64(&mmSaveHistoryInTx.beforeSaveHistoryInTxCounter, 1)
+	defer mm_atomic.AddUint64(&mmSaveHistoryInTx.afterSaveHistoryInTxCounter, 1)
+
+	mmSaveHistoryInTx.t.Helper()
+
+	if mmSaveHistoryInTx.inspectFuncSaveHistoryInTx != nil {
+		mmSaveHistoryInTx.inspectFuncSaveHistoryInTx(ctx, tx, history)
+	}
+
+	mm_params := OrderRepositoryMockSaveHistoryInTxParams{ctx, tx, history}
+
+	// Record call args
+	mmSaveHistoryInTx.SaveHistoryInTxMock.mutex.Lock()
+	mmSaveHistoryInTx.SaveHistoryInTxMock.callArgs = append(mmSaveHistoryInTx.SaveHistoryInTxMock.callArgs, &mm_params)
+	mmSaveHistoryInTx.SaveHistoryInTxMock.mutex.Unlock()
+
+	for _, e := range mmSaveHistoryInTx.SaveHistoryInTxMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.err
+		}
+	}
+
+	if mmSaveHistoryInTx.SaveHistoryInTxMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmSaveHistoryInTx.SaveHistoryInTxMock.defaultExpectation.Counter, 1)
+		mm_want := mmSaveHistoryInTx.SaveHistoryInTxMock.defaultExpectation.params
+		mm_want_ptrs := mmSaveHistoryInTx.SaveHistoryInTxMock.defaultExpectation.paramPtrs
+
+		mm_got := OrderRepositoryMockSaveHistoryInTxParams{ctx, tx, history}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmSaveHistoryInTx.t.Errorf("OrderRepositoryMock.SaveHistoryInTx got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmSaveHistoryInTx.SaveHistoryInTxMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.tx != nil && !minimock.Equal(*mm_want_ptrs.tx, mm_got.tx) {
+				mmSaveHistoryInTx.t.Errorf("OrderRepositoryMock.SaveHistoryInTx got unexpected parameter tx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmSaveHistoryInTx.SaveHistoryInTxMock.defaultExpectation.expectationOrigins.originTx, *mm_want_ptrs.tx, mm_got.tx, minimock.Diff(*mm_want_ptrs.tx, mm_got.tx))
+			}
+
+			if mm_want_ptrs.history != nil && !minimock.Equal(*mm_want_ptrs.history, mm_got.history) {
+				mmSaveHistoryInTx.t.Errorf("OrderRepositoryMock.SaveHistoryInTx got unexpected parameter history, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmSaveHistoryInTx.SaveHistoryInTxMock.defaultExpectation.expectationOrigins.originHistory, *mm_want_ptrs.history, mm_got.history, minimock.Diff(*mm_want_ptrs.history, mm_got.history))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmSaveHistoryInTx.t.Errorf("OrderRepositoryMock.SaveHistoryInTx got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmSaveHistoryInTx.SaveHistoryInTxMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmSaveHistoryInTx.SaveHistoryInTxMock.defaultExpectation.results
+		if mm_results == nil {
+			mmSaveHistoryInTx.t.Fatal("No results are set for the OrderRepositoryMock.SaveHistoryInTx")
+		}
+		return (*mm_results).err
+	}
+	if mmSaveHistoryInTx.funcSaveHistoryInTx != nil {
+		return mmSaveHistoryInTx.funcSaveHistoryInTx(ctx, tx, history)
+	}
+	mmSaveHistoryInTx.t.Fatalf("Unexpected call to OrderRepositoryMock.SaveHistoryInTx. %v %v %v", ctx, tx, history)
+	return
+}
+
+// SaveHistoryInTxAfterCounter returns a count of finished OrderRepositoryMock.SaveHistoryInTx invocations
+func (mmSaveHistoryInTx *OrderRepositoryMock) SaveHistoryInTxAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmSaveHistoryInTx.afterSaveHistoryInTxCounter)
+}
+
+// SaveHistoryInTxBeforeCounter returns a count of OrderRepositoryMock.SaveHistoryInTx invocations
+func (mmSaveHistoryInTx *OrderRepositoryMock) SaveHistoryInTxBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmSaveHistoryInTx.beforeSaveHistoryInTxCounter)
+}
+
+// Calls returns a list of arguments used in each call to OrderRepositoryMock.SaveHistoryInTx.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmSaveHistoryInTx *mOrderRepositoryMockSaveHistoryInTx) Calls() []*OrderRepositoryMockSaveHistoryInTxParams {
+	mmSaveHistoryInTx.mutex.RLock()
+
+	argCopy := make([]*OrderRepositoryMockSaveHistoryInTxParams, len(mmSaveHistoryInTx.callArgs))
+	copy(argCopy, mmSaveHistoryInTx.callArgs)
+
+	mmSaveHistoryInTx.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockSaveHistoryInTxDone returns true if the count of the SaveHistoryInTx invocations corresponds
+// the number of defined expectations
+func (m *OrderRepositoryMock) MinimockSaveHistoryInTxDone() bool {
+	if m.SaveHistoryInTxMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.SaveHistoryInTxMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.SaveHistoryInTxMock.invocationsDone()
+}
+
+// MinimockSaveHistoryInTxInspect logs each unmet expectation
+func (m *OrderRepositoryMock) MinimockSaveHistoryInTxInspect() {
+	for _, e := range m.SaveHistoryInTxMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to OrderRepositoryMock.SaveHistoryInTx at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterSaveHistoryInTxCounter := mm_atomic.LoadUint64(&m.afterSaveHistoryInTxCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.SaveHistoryInTxMock.defaultExpectation != nil && afterSaveHistoryInTxCounter < 1 {
+		if m.SaveHistoryInTxMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to OrderRepositoryMock.SaveHistoryInTx at\n%s", m.SaveHistoryInTxMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to OrderRepositoryMock.SaveHistoryInTx at\n%s with params: %#v", m.SaveHistoryInTxMock.defaultExpectation.expectationOrigins.origin, *m.SaveHistoryInTxMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcSaveHistoryInTx != nil && afterSaveHistoryInTxCounter < 1 {
+		m.t.Errorf("Expected call to OrderRepositoryMock.SaveHistoryInTx at\n%s", m.funcSaveHistoryInTxOrigin)
+	}
+
+	if !m.SaveHistoryInTxMock.invocationsDone() && afterSaveHistoryInTxCounter > 0 {
+		m.t.Errorf("Expected %d calls to OrderRepositoryMock.SaveHistoryInTx at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.SaveHistoryInTxMock.expectedInvocations), m.SaveHistoryInTxMock.expectedInvocationsOrigin, afterSaveHistoryInTxCounter)
+	}
+}
+
+type mOrderRepositoryMockSaveOrderInTx struct {
+	optional           bool
+	mock               *OrderRepositoryMock
+	defaultExpectation *OrderRepositoryMockSaveOrderInTxExpectation
+	expectations       []*OrderRepositoryMockSaveOrderInTxExpectation
+
+	callArgs []*OrderRepositoryMockSaveOrderInTxParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// OrderRepositoryMockSaveOrderInTxExpectation specifies expectation struct of the OrderRepository.SaveOrderInTx
+type OrderRepositoryMockSaveOrderInTxExpectation struct {
+	mock               *OrderRepositoryMock
+	params             *OrderRepositoryMockSaveOrderInTxParams
+	paramPtrs          *OrderRepositoryMockSaveOrderInTxParamPtrs
+	expectationOrigins OrderRepositoryMockSaveOrderInTxExpectationOrigins
+	results            *OrderRepositoryMockSaveOrderInTxResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// OrderRepositoryMockSaveOrderInTxParams contains parameters of the OrderRepository.SaveOrderInTx
+type OrderRepositoryMockSaveOrderInTxParams struct {
+	ctx   context.Context
+	tx    *db.Tx
+	order domain.Order
+}
+
+// OrderRepositoryMockSaveOrderInTxParamPtrs contains pointers to parameters of the OrderRepository.SaveOrderInTx
+type OrderRepositoryMockSaveOrderInTxParamPtrs struct {
+	ctx   *context.Context
+	tx    **db.Tx
+	order *domain.Order
+}
+
+// OrderRepositoryMockSaveOrderInTxResults contains results of the OrderRepository.SaveOrderInTx
+type OrderRepositoryMockSaveOrderInTxResults struct {
+	err error
+}
+
+// OrderRepositoryMockSaveOrderInTxOrigins contains origins of expectations of the OrderRepository.SaveOrderInTx
+type OrderRepositoryMockSaveOrderInTxExpectationOrigins struct {
+	origin      string
+	originCtx   string
+	originTx    string
+	originOrder string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmSaveOrderInTx *mOrderRepositoryMockSaveOrderInTx) Optional() *mOrderRepositoryMockSaveOrderInTx {
+	mmSaveOrderInTx.optional = true
+	return mmSaveOrderInTx
+}
+
+// Expect sets up expected params for OrderRepository.SaveOrderInTx
+func (mmSaveOrderInTx *mOrderRepositoryMockSaveOrderInTx) Expect(ctx context.Context, tx *db.Tx, order domain.Order) *mOrderRepositoryMockSaveOrderInTx {
+	if mmSaveOrderInTx.mock.funcSaveOrderInTx != nil {
+		mmSaveOrderInTx.mock.t.Fatalf("OrderRepositoryMock.SaveOrderInTx mock is already set by Set")
+	}
+
+	if mmSaveOrderInTx.defaultExpectation == nil {
+		mmSaveOrderInTx.defaultExpectation = &OrderRepositoryMockSaveOrderInTxExpectation{}
+	}
+
+	if mmSaveOrderInTx.defaultExpectation.paramPtrs != nil {
+		mmSaveOrderInTx.mock.t.Fatalf("OrderRepositoryMock.SaveOrderInTx mock is already set by ExpectParams functions")
+	}
+
+	mmSaveOrderInTx.defaultExpectation.params = &OrderRepositoryMockSaveOrderInTxParams{ctx, tx, order}
+	mmSaveOrderInTx.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmSaveOrderInTx.expectations {
+		if minimock.Equal(e.params, mmSaveOrderInTx.defaultExpectation.params) {
+			mmSaveOrderInTx.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmSaveOrderInTx.defaultExpectation.params)
+		}
+	}
+
+	return mmSaveOrderInTx
+}
+
+// ExpectCtxParam1 sets up expected param ctx for OrderRepository.SaveOrderInTx
+func (mmSaveOrderInTx *mOrderRepositoryMockSaveOrderInTx) ExpectCtxParam1(ctx context.Context) *mOrderRepositoryMockSaveOrderInTx {
+	if mmSaveOrderInTx.mock.funcSaveOrderInTx != nil {
+		mmSaveOrderInTx.mock.t.Fatalf("OrderRepositoryMock.SaveOrderInTx mock is already set by Set")
+	}
+
+	if mmSaveOrderInTx.defaultExpectation == nil {
+		mmSaveOrderInTx.defaultExpectation = &OrderRepositoryMockSaveOrderInTxExpectation{}
+	}
+
+	if mmSaveOrderInTx.defaultExpectation.params != nil {
+		mmSaveOrderInTx.mock.t.Fatalf("OrderRepositoryMock.SaveOrderInTx mock is already set by Expect")
+	}
+
+	if mmSaveOrderInTx.defaultExpectation.paramPtrs == nil {
+		mmSaveOrderInTx.defaultExpectation.paramPtrs = &OrderRepositoryMockSaveOrderInTxParamPtrs{}
+	}
+	mmSaveOrderInTx.defaultExpectation.paramPtrs.ctx = &ctx
+	mmSaveOrderInTx.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmSaveOrderInTx
+}
+
+// ExpectTxParam2 sets up expected param tx for OrderRepository.SaveOrderInTx
+func (mmSaveOrderInTx *mOrderRepositoryMockSaveOrderInTx) ExpectTxParam2(tx *db.Tx) *mOrderRepositoryMockSaveOrderInTx {
+	if mmSaveOrderInTx.mock.funcSaveOrderInTx != nil {
+		mmSaveOrderInTx.mock.t.Fatalf("OrderRepositoryMock.SaveOrderInTx mock is already set by Set")
+	}
+
+	if mmSaveOrderInTx.defaultExpectation == nil {
+		mmSaveOrderInTx.defaultExpectation = &OrderRepositoryMockSaveOrderInTxExpectation{}
+	}
+
+	if mmSaveOrderInTx.defaultExpectation.params != nil {
+		mmSaveOrderInTx.mock.t.Fatalf("OrderRepositoryMock.SaveOrderInTx mock is already set by Expect")
+	}
+
+	if mmSaveOrderInTx.defaultExpectation.paramPtrs == nil {
+		mmSaveOrderInTx.defaultExpectation.paramPtrs = &OrderRepositoryMockSaveOrderInTxParamPtrs{}
+	}
+	mmSaveOrderInTx.defaultExpectation.paramPtrs.tx = &tx
+	mmSaveOrderInTx.defaultExpectation.expectationOrigins.originTx = minimock.CallerInfo(1)
+
+	return mmSaveOrderInTx
+}
+
+// ExpectOrderParam3 sets up expected param order for OrderRepository.SaveOrderInTx
+func (mmSaveOrderInTx *mOrderRepositoryMockSaveOrderInTx) ExpectOrderParam3(order domain.Order) *mOrderRepositoryMockSaveOrderInTx {
+	if mmSaveOrderInTx.mock.funcSaveOrderInTx != nil {
+		mmSaveOrderInTx.mock.t.Fatalf("OrderRepositoryMock.SaveOrderInTx mock is already set by Set")
+	}
+
+	if mmSaveOrderInTx.defaultExpectation == nil {
+		mmSaveOrderInTx.defaultExpectation = &OrderRepositoryMockSaveOrderInTxExpectation{}
+	}
+
+	if mmSaveOrderInTx.defaultExpectation.params != nil {
+		mmSaveOrderInTx.mock.t.Fatalf("OrderRepositoryMock.SaveOrderInTx mock is already set by Expect")
+	}
+
+	if mmSaveOrderInTx.defaultExpectation.paramPtrs == nil {
+		mmSaveOrderInTx.defaultExpectation.paramPtrs = &OrderRepositoryMockSaveOrderInTxParamPtrs{}
+	}
+	mmSaveOrderInTx.defaultExpectation.paramPtrs.order = &order
+	mmSaveOrderInTx.defaultExpectation.expectationOrigins.originOrder = minimock.CallerInfo(1)
+
+	return mmSaveOrderInTx
+}
+
+// Inspect accepts an inspector function that has same arguments as the OrderRepository.SaveOrderInTx
+func (mmSaveOrderInTx *mOrderRepositoryMockSaveOrderInTx) Inspect(f func(ctx context.Context, tx *db.Tx, order domain.Order)) *mOrderRepositoryMockSaveOrderInTx {
+	if mmSaveOrderInTx.mock.inspectFuncSaveOrderInTx != nil {
+		mmSaveOrderInTx.mock.t.Fatalf("Inspect function is already set for OrderRepositoryMock.SaveOrderInTx")
+	}
+
+	mmSaveOrderInTx.mock.inspectFuncSaveOrderInTx = f
+
+	return mmSaveOrderInTx
+}
+
+// Return sets up results that will be returned by OrderRepository.SaveOrderInTx
+func (mmSaveOrderInTx *mOrderRepositoryMockSaveOrderInTx) Return(err error) *OrderRepositoryMock {
+	if mmSaveOrderInTx.mock.funcSaveOrderInTx != nil {
+		mmSaveOrderInTx.mock.t.Fatalf("OrderRepositoryMock.SaveOrderInTx mock is already set by Set")
+	}
+
+	if mmSaveOrderInTx.defaultExpectation == nil {
+		mmSaveOrderInTx.defaultExpectation = &OrderRepositoryMockSaveOrderInTxExpectation{mock: mmSaveOrderInTx.mock}
+	}
+	mmSaveOrderInTx.defaultExpectation.results = &OrderRepositoryMockSaveOrderInTxResults{err}
+	mmSaveOrderInTx.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmSaveOrderInTx.mock
+}
+
+// Set uses given function f to mock the OrderRepository.SaveOrderInTx method
+func (mmSaveOrderInTx *mOrderRepositoryMockSaveOrderInTx) Set(f func(ctx context.Context, tx *db.Tx, order domain.Order) (err error)) *OrderRepositoryMock {
+	if mmSaveOrderInTx.defaultExpectation != nil {
+		mmSaveOrderInTx.mock.t.Fatalf("Default expectation is already set for the OrderRepository.SaveOrderInTx method")
+	}
+
+	if len(mmSaveOrderInTx.expectations) > 0 {
+		mmSaveOrderInTx.mock.t.Fatalf("Some expectations are already set for the OrderRepository.SaveOrderInTx method")
+	}
+
+	mmSaveOrderInTx.mock.funcSaveOrderInTx = f
+	mmSaveOrderInTx.mock.funcSaveOrderInTxOrigin = minimock.CallerInfo(1)
+	return mmSaveOrderInTx.mock
+}
+
+// When sets expectation for the OrderRepository.SaveOrderInTx which will trigger the result defined by the following
+// Then helper
+func (mmSaveOrderInTx *mOrderRepositoryMockSaveOrderInTx) When(ctx context.Context, tx *db.Tx, order domain.Order) *OrderRepositoryMockSaveOrderInTxExpectation {
+	if mmSaveOrderInTx.mock.funcSaveOrderInTx != nil {
+		mmSaveOrderInTx.mock.t.Fatalf("OrderRepositoryMock.SaveOrderInTx mock is already set by Set")
+	}
+
+	expectation := &OrderRepositoryMockSaveOrderInTxExpectation{
+		mock:               mmSaveOrderInTx.mock,
+		params:             &OrderRepositoryMockSaveOrderInTxParams{ctx, tx, order},
+		expectationOrigins: OrderRepositoryMockSaveOrderInTxExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmSaveOrderInTx.expectations = append(mmSaveOrderInTx.expectations, expectation)
+	return expectation
+}
+
+// Then sets up OrderRepository.SaveOrderInTx return parameters for the expectation previously defined by the When method
+func (e *OrderRepositoryMockSaveOrderInTxExpectation) Then(err error) *OrderRepositoryMock {
+	e.results = &OrderRepositoryMockSaveOrderInTxResults{err}
+	return e.mock
+}
+
+// Times sets number of times OrderRepository.SaveOrderInTx should be invoked
+func (mmSaveOrderInTx *mOrderRepositoryMockSaveOrderInTx) Times(n uint64) *mOrderRepositoryMockSaveOrderInTx {
+	if n == 0 {
+		mmSaveOrderInTx.mock.t.Fatalf("Times of OrderRepositoryMock.SaveOrderInTx mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmSaveOrderInTx.expectedInvocations, n)
+	mmSaveOrderInTx.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmSaveOrderInTx
+}
+
+func (mmSaveOrderInTx *mOrderRepositoryMockSaveOrderInTx) invocationsDone() bool {
+	if len(mmSaveOrderInTx.expectations) == 0 && mmSaveOrderInTx.defaultExpectation == nil && mmSaveOrderInTx.mock.funcSaveOrderInTx == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmSaveOrderInTx.mock.afterSaveOrderInTxCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmSaveOrderInTx.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// SaveOrderInTx implements OrderRepository
+func (mmSaveOrderInTx *OrderRepositoryMock) SaveOrderInTx(ctx context.Context, tx *db.Tx, order domain.Order) (err error) {
+	mm_atomic.AddUint64(&mmSaveOrderInTx.beforeSaveOrderInTxCounter, 1)
+	defer mm_atomic.AddUint64(&mmSaveOrderInTx.afterSaveOrderInTxCounter, 1)
+
+	mmSaveOrderInTx.t.Helper()
+
+	if mmSaveOrderInTx.inspectFuncSaveOrderInTx != nil {
+		mmSaveOrderInTx.inspectFuncSaveOrderInTx(ctx, tx, order)
+	}
+
+	mm_params := OrderRepositoryMockSaveOrderInTxParams{ctx, tx, order}
+
+	// Record call args
+	mmSaveOrderInTx.SaveOrderInTxMock.mutex.Lock()
+	mmSaveOrderInTx.SaveOrderInTxMock.callArgs = append(mmSaveOrderInTx.SaveOrderInTxMock.callArgs, &mm_params)
+	mmSaveOrderInTx.SaveOrderInTxMock.mutex.Unlock()
+
+	for _, e := range mmSaveOrderInTx.SaveOrderInTxMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.err
+		}
+	}
+
+	if mmSaveOrderInTx.SaveOrderInTxMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmSaveOrderInTx.SaveOrderInTxMock.defaultExpectation.Counter, 1)
+		mm_want := mmSaveOrderInTx.SaveOrderInTxMock.defaultExpectation.params
+		mm_want_ptrs := mmSaveOrderInTx.SaveOrderInTxMock.defaultExpectation.paramPtrs
+
+		mm_got := OrderRepositoryMockSaveOrderInTxParams{ctx, tx, order}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmSaveOrderInTx.t.Errorf("OrderRepositoryMock.SaveOrderInTx got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmSaveOrderInTx.SaveOrderInTxMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.tx != nil && !minimock.Equal(*mm_want_ptrs.tx, mm_got.tx) {
+				mmSaveOrderInTx.t.Errorf("OrderRepositoryMock.SaveOrderInTx got unexpected parameter tx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmSaveOrderInTx.SaveOrderInTxMock.defaultExpectation.expectationOrigins.originTx, *mm_want_ptrs.tx, mm_got.tx, minimock.Diff(*mm_want_ptrs.tx, mm_got.tx))
+			}
+
+			if mm_want_ptrs.order != nil && !minimock.Equal(*mm_want_ptrs.order, mm_got.order) {
+				mmSaveOrderInTx.t.Errorf("OrderRepositoryMock.SaveOrderInTx got unexpected parameter order, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmSaveOrderInTx.SaveOrderInTxMock.defaultExpectation.expectationOrigins.originOrder, *mm_want_ptrs.order, mm_got.order, minimock.Diff(*mm_want_ptrs.order, mm_got.order))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmSaveOrderInTx.t.Errorf("OrderRepositoryMock.SaveOrderInTx got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmSaveOrderInTx.SaveOrderInTxMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmSaveOrderInTx.SaveOrderInTxMock.defaultExpectation.results
+		if mm_results == nil {
+			mmSaveOrderInTx.t.Fatal("No results are set for the OrderRepositoryMock.SaveOrderInTx")
+		}
+		return (*mm_results).err
+	}
+	if mmSaveOrderInTx.funcSaveOrderInTx != nil {
+		return mmSaveOrderInTx.funcSaveOrderInTx(ctx, tx, order)
+	}
+	mmSaveOrderInTx.t.Fatalf("Unexpected call to OrderRepositoryMock.SaveOrderInTx. %v %v %v", ctx, tx, order)
+	return
+}
+
+// SaveOrderInTxAfterCounter returns a count of finished OrderRepositoryMock.SaveOrderInTx invocations
+func (mmSaveOrderInTx *OrderRepositoryMock) SaveOrderInTxAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmSaveOrderInTx.afterSaveOrderInTxCounter)
+}
+
+// SaveOrderInTxBeforeCounter returns a count of OrderRepositoryMock.SaveOrderInTx invocations
+func (mmSaveOrderInTx *OrderRepositoryMock) SaveOrderInTxBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmSaveOrderInTx.beforeSaveOrderInTxCounter)
+}
+
+// Calls returns a list of arguments used in each call to OrderRepositoryMock.SaveOrderInTx.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmSaveOrderInTx *mOrderRepositoryMockSaveOrderInTx) Calls() []*OrderRepositoryMockSaveOrderInTxParams {
+	mmSaveOrderInTx.mutex.RLock()
+
+	argCopy := make([]*OrderRepositoryMockSaveOrderInTxParams, len(mmSaveOrderInTx.callArgs))
+	copy(argCopy, mmSaveOrderInTx.callArgs)
+
+	mmSaveOrderInTx.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockSaveOrderInTxDone returns true if the count of the SaveOrderInTx invocations corresponds
+// the number of defined expectations
+func (m *OrderRepositoryMock) MinimockSaveOrderInTxDone() bool {
+	if m.SaveOrderInTxMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.SaveOrderInTxMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.SaveOrderInTxMock.invocationsDone()
+}
+
+// MinimockSaveOrderInTxInspect logs each unmet expectation
+func (m *OrderRepositoryMock) MinimockSaveOrderInTxInspect() {
+	for _, e := range m.SaveOrderInTxMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to OrderRepositoryMock.SaveOrderInTx at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterSaveOrderInTxCounter := mm_atomic.LoadUint64(&m.afterSaveOrderInTxCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.SaveOrderInTxMock.defaultExpectation != nil && afterSaveOrderInTxCounter < 1 {
+		if m.SaveOrderInTxMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to OrderRepositoryMock.SaveOrderInTx at\n%s", m.SaveOrderInTxMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to OrderRepositoryMock.SaveOrderInTx at\n%s with params: %#v", m.SaveOrderInTxMock.defaultExpectation.expectationOrigins.origin, *m.SaveOrderInTxMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcSaveOrderInTx != nil && afterSaveOrderInTxCounter < 1 {
+		m.t.Errorf("Expected call to OrderRepositoryMock.SaveOrderInTx at\n%s", m.funcSaveOrderInTxOrigin)
+	}
+
+	if !m.SaveOrderInTxMock.invocationsDone() && afterSaveOrderInTxCounter > 0 {
+		m.t.Errorf("Expected %d calls to OrderRepositoryMock.SaveOrderInTx at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.SaveOrderInTxMock.expectedInvocations), m.SaveOrderInTxMock.expectedInvocationsOrigin, afterSaveOrderInTxCounter)
 	}
 }
 
@@ -3015,7 +3792,7 @@ func (mmUpdate *mOrderRepositoryMockUpdate) invocationsDone() bool {
 	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
 }
 
-// Update implements mm_app.OrderRepository
+// Update implements OrderRepository
 func (mmUpdate *OrderRepositoryMock) Update(ctx context.Context, order domain.Order) (err error) {
 	mm_atomic.AddUint64(&mmUpdate.beforeUpdateCounter, 1)
 	defer mm_atomic.AddUint64(&mmUpdate.afterUpdateCounter, 1)
@@ -3145,6 +3922,379 @@ func (m *OrderRepositoryMock) MinimockUpdateInspect() {
 	}
 }
 
+type mOrderRepositoryMockUpdateOrderInTx struct {
+	optional           bool
+	mock               *OrderRepositoryMock
+	defaultExpectation *OrderRepositoryMockUpdateOrderInTxExpectation
+	expectations       []*OrderRepositoryMockUpdateOrderInTxExpectation
+
+	callArgs []*OrderRepositoryMockUpdateOrderInTxParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// OrderRepositoryMockUpdateOrderInTxExpectation specifies expectation struct of the OrderRepository.UpdateOrderInTx
+type OrderRepositoryMockUpdateOrderInTxExpectation struct {
+	mock               *OrderRepositoryMock
+	params             *OrderRepositoryMockUpdateOrderInTxParams
+	paramPtrs          *OrderRepositoryMockUpdateOrderInTxParamPtrs
+	expectationOrigins OrderRepositoryMockUpdateOrderInTxExpectationOrigins
+	results            *OrderRepositoryMockUpdateOrderInTxResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// OrderRepositoryMockUpdateOrderInTxParams contains parameters of the OrderRepository.UpdateOrderInTx
+type OrderRepositoryMockUpdateOrderInTxParams struct {
+	ctx   context.Context
+	tx    *db.Tx
+	order domain.Order
+}
+
+// OrderRepositoryMockUpdateOrderInTxParamPtrs contains pointers to parameters of the OrderRepository.UpdateOrderInTx
+type OrderRepositoryMockUpdateOrderInTxParamPtrs struct {
+	ctx   *context.Context
+	tx    **db.Tx
+	order *domain.Order
+}
+
+// OrderRepositoryMockUpdateOrderInTxResults contains results of the OrderRepository.UpdateOrderInTx
+type OrderRepositoryMockUpdateOrderInTxResults struct {
+	err error
+}
+
+// OrderRepositoryMockUpdateOrderInTxOrigins contains origins of expectations of the OrderRepository.UpdateOrderInTx
+type OrderRepositoryMockUpdateOrderInTxExpectationOrigins struct {
+	origin      string
+	originCtx   string
+	originTx    string
+	originOrder string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmUpdateOrderInTx *mOrderRepositoryMockUpdateOrderInTx) Optional() *mOrderRepositoryMockUpdateOrderInTx {
+	mmUpdateOrderInTx.optional = true
+	return mmUpdateOrderInTx
+}
+
+// Expect sets up expected params for OrderRepository.UpdateOrderInTx
+func (mmUpdateOrderInTx *mOrderRepositoryMockUpdateOrderInTx) Expect(ctx context.Context, tx *db.Tx, order domain.Order) *mOrderRepositoryMockUpdateOrderInTx {
+	if mmUpdateOrderInTx.mock.funcUpdateOrderInTx != nil {
+		mmUpdateOrderInTx.mock.t.Fatalf("OrderRepositoryMock.UpdateOrderInTx mock is already set by Set")
+	}
+
+	if mmUpdateOrderInTx.defaultExpectation == nil {
+		mmUpdateOrderInTx.defaultExpectation = &OrderRepositoryMockUpdateOrderInTxExpectation{}
+	}
+
+	if mmUpdateOrderInTx.defaultExpectation.paramPtrs != nil {
+		mmUpdateOrderInTx.mock.t.Fatalf("OrderRepositoryMock.UpdateOrderInTx mock is already set by ExpectParams functions")
+	}
+
+	mmUpdateOrderInTx.defaultExpectation.params = &OrderRepositoryMockUpdateOrderInTxParams{ctx, tx, order}
+	mmUpdateOrderInTx.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmUpdateOrderInTx.expectations {
+		if minimock.Equal(e.params, mmUpdateOrderInTx.defaultExpectation.params) {
+			mmUpdateOrderInTx.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmUpdateOrderInTx.defaultExpectation.params)
+		}
+	}
+
+	return mmUpdateOrderInTx
+}
+
+// ExpectCtxParam1 sets up expected param ctx for OrderRepository.UpdateOrderInTx
+func (mmUpdateOrderInTx *mOrderRepositoryMockUpdateOrderInTx) ExpectCtxParam1(ctx context.Context) *mOrderRepositoryMockUpdateOrderInTx {
+	if mmUpdateOrderInTx.mock.funcUpdateOrderInTx != nil {
+		mmUpdateOrderInTx.mock.t.Fatalf("OrderRepositoryMock.UpdateOrderInTx mock is already set by Set")
+	}
+
+	if mmUpdateOrderInTx.defaultExpectation == nil {
+		mmUpdateOrderInTx.defaultExpectation = &OrderRepositoryMockUpdateOrderInTxExpectation{}
+	}
+
+	if mmUpdateOrderInTx.defaultExpectation.params != nil {
+		mmUpdateOrderInTx.mock.t.Fatalf("OrderRepositoryMock.UpdateOrderInTx mock is already set by Expect")
+	}
+
+	if mmUpdateOrderInTx.defaultExpectation.paramPtrs == nil {
+		mmUpdateOrderInTx.defaultExpectation.paramPtrs = &OrderRepositoryMockUpdateOrderInTxParamPtrs{}
+	}
+	mmUpdateOrderInTx.defaultExpectation.paramPtrs.ctx = &ctx
+	mmUpdateOrderInTx.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmUpdateOrderInTx
+}
+
+// ExpectTxParam2 sets up expected param tx for OrderRepository.UpdateOrderInTx
+func (mmUpdateOrderInTx *mOrderRepositoryMockUpdateOrderInTx) ExpectTxParam2(tx *db.Tx) *mOrderRepositoryMockUpdateOrderInTx {
+	if mmUpdateOrderInTx.mock.funcUpdateOrderInTx != nil {
+		mmUpdateOrderInTx.mock.t.Fatalf("OrderRepositoryMock.UpdateOrderInTx mock is already set by Set")
+	}
+
+	if mmUpdateOrderInTx.defaultExpectation == nil {
+		mmUpdateOrderInTx.defaultExpectation = &OrderRepositoryMockUpdateOrderInTxExpectation{}
+	}
+
+	if mmUpdateOrderInTx.defaultExpectation.params != nil {
+		mmUpdateOrderInTx.mock.t.Fatalf("OrderRepositoryMock.UpdateOrderInTx mock is already set by Expect")
+	}
+
+	if mmUpdateOrderInTx.defaultExpectation.paramPtrs == nil {
+		mmUpdateOrderInTx.defaultExpectation.paramPtrs = &OrderRepositoryMockUpdateOrderInTxParamPtrs{}
+	}
+	mmUpdateOrderInTx.defaultExpectation.paramPtrs.tx = &tx
+	mmUpdateOrderInTx.defaultExpectation.expectationOrigins.originTx = minimock.CallerInfo(1)
+
+	return mmUpdateOrderInTx
+}
+
+// ExpectOrderParam3 sets up expected param order for OrderRepository.UpdateOrderInTx
+func (mmUpdateOrderInTx *mOrderRepositoryMockUpdateOrderInTx) ExpectOrderParam3(order domain.Order) *mOrderRepositoryMockUpdateOrderInTx {
+	if mmUpdateOrderInTx.mock.funcUpdateOrderInTx != nil {
+		mmUpdateOrderInTx.mock.t.Fatalf("OrderRepositoryMock.UpdateOrderInTx mock is already set by Set")
+	}
+
+	if mmUpdateOrderInTx.defaultExpectation == nil {
+		mmUpdateOrderInTx.defaultExpectation = &OrderRepositoryMockUpdateOrderInTxExpectation{}
+	}
+
+	if mmUpdateOrderInTx.defaultExpectation.params != nil {
+		mmUpdateOrderInTx.mock.t.Fatalf("OrderRepositoryMock.UpdateOrderInTx mock is already set by Expect")
+	}
+
+	if mmUpdateOrderInTx.defaultExpectation.paramPtrs == nil {
+		mmUpdateOrderInTx.defaultExpectation.paramPtrs = &OrderRepositoryMockUpdateOrderInTxParamPtrs{}
+	}
+	mmUpdateOrderInTx.defaultExpectation.paramPtrs.order = &order
+	mmUpdateOrderInTx.defaultExpectation.expectationOrigins.originOrder = minimock.CallerInfo(1)
+
+	return mmUpdateOrderInTx
+}
+
+// Inspect accepts an inspector function that has same arguments as the OrderRepository.UpdateOrderInTx
+func (mmUpdateOrderInTx *mOrderRepositoryMockUpdateOrderInTx) Inspect(f func(ctx context.Context, tx *db.Tx, order domain.Order)) *mOrderRepositoryMockUpdateOrderInTx {
+	if mmUpdateOrderInTx.mock.inspectFuncUpdateOrderInTx != nil {
+		mmUpdateOrderInTx.mock.t.Fatalf("Inspect function is already set for OrderRepositoryMock.UpdateOrderInTx")
+	}
+
+	mmUpdateOrderInTx.mock.inspectFuncUpdateOrderInTx = f
+
+	return mmUpdateOrderInTx
+}
+
+// Return sets up results that will be returned by OrderRepository.UpdateOrderInTx
+func (mmUpdateOrderInTx *mOrderRepositoryMockUpdateOrderInTx) Return(err error) *OrderRepositoryMock {
+	if mmUpdateOrderInTx.mock.funcUpdateOrderInTx != nil {
+		mmUpdateOrderInTx.mock.t.Fatalf("OrderRepositoryMock.UpdateOrderInTx mock is already set by Set")
+	}
+
+	if mmUpdateOrderInTx.defaultExpectation == nil {
+		mmUpdateOrderInTx.defaultExpectation = &OrderRepositoryMockUpdateOrderInTxExpectation{mock: mmUpdateOrderInTx.mock}
+	}
+	mmUpdateOrderInTx.defaultExpectation.results = &OrderRepositoryMockUpdateOrderInTxResults{err}
+	mmUpdateOrderInTx.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmUpdateOrderInTx.mock
+}
+
+// Set uses given function f to mock the OrderRepository.UpdateOrderInTx method
+func (mmUpdateOrderInTx *mOrderRepositoryMockUpdateOrderInTx) Set(f func(ctx context.Context, tx *db.Tx, order domain.Order) (err error)) *OrderRepositoryMock {
+	if mmUpdateOrderInTx.defaultExpectation != nil {
+		mmUpdateOrderInTx.mock.t.Fatalf("Default expectation is already set for the OrderRepository.UpdateOrderInTx method")
+	}
+
+	if len(mmUpdateOrderInTx.expectations) > 0 {
+		mmUpdateOrderInTx.mock.t.Fatalf("Some expectations are already set for the OrderRepository.UpdateOrderInTx method")
+	}
+
+	mmUpdateOrderInTx.mock.funcUpdateOrderInTx = f
+	mmUpdateOrderInTx.mock.funcUpdateOrderInTxOrigin = minimock.CallerInfo(1)
+	return mmUpdateOrderInTx.mock
+}
+
+// When sets expectation for the OrderRepository.UpdateOrderInTx which will trigger the result defined by the following
+// Then helper
+func (mmUpdateOrderInTx *mOrderRepositoryMockUpdateOrderInTx) When(ctx context.Context, tx *db.Tx, order domain.Order) *OrderRepositoryMockUpdateOrderInTxExpectation {
+	if mmUpdateOrderInTx.mock.funcUpdateOrderInTx != nil {
+		mmUpdateOrderInTx.mock.t.Fatalf("OrderRepositoryMock.UpdateOrderInTx mock is already set by Set")
+	}
+
+	expectation := &OrderRepositoryMockUpdateOrderInTxExpectation{
+		mock:               mmUpdateOrderInTx.mock,
+		params:             &OrderRepositoryMockUpdateOrderInTxParams{ctx, tx, order},
+		expectationOrigins: OrderRepositoryMockUpdateOrderInTxExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmUpdateOrderInTx.expectations = append(mmUpdateOrderInTx.expectations, expectation)
+	return expectation
+}
+
+// Then sets up OrderRepository.UpdateOrderInTx return parameters for the expectation previously defined by the When method
+func (e *OrderRepositoryMockUpdateOrderInTxExpectation) Then(err error) *OrderRepositoryMock {
+	e.results = &OrderRepositoryMockUpdateOrderInTxResults{err}
+	return e.mock
+}
+
+// Times sets number of times OrderRepository.UpdateOrderInTx should be invoked
+func (mmUpdateOrderInTx *mOrderRepositoryMockUpdateOrderInTx) Times(n uint64) *mOrderRepositoryMockUpdateOrderInTx {
+	if n == 0 {
+		mmUpdateOrderInTx.mock.t.Fatalf("Times of OrderRepositoryMock.UpdateOrderInTx mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmUpdateOrderInTx.expectedInvocations, n)
+	mmUpdateOrderInTx.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmUpdateOrderInTx
+}
+
+func (mmUpdateOrderInTx *mOrderRepositoryMockUpdateOrderInTx) invocationsDone() bool {
+	if len(mmUpdateOrderInTx.expectations) == 0 && mmUpdateOrderInTx.defaultExpectation == nil && mmUpdateOrderInTx.mock.funcUpdateOrderInTx == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmUpdateOrderInTx.mock.afterUpdateOrderInTxCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmUpdateOrderInTx.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// UpdateOrderInTx implements OrderRepository
+func (mmUpdateOrderInTx *OrderRepositoryMock) UpdateOrderInTx(ctx context.Context, tx *db.Tx, order domain.Order) (err error) {
+	mm_atomic.AddUint64(&mmUpdateOrderInTx.beforeUpdateOrderInTxCounter, 1)
+	defer mm_atomic.AddUint64(&mmUpdateOrderInTx.afterUpdateOrderInTxCounter, 1)
+
+	mmUpdateOrderInTx.t.Helper()
+
+	if mmUpdateOrderInTx.inspectFuncUpdateOrderInTx != nil {
+		mmUpdateOrderInTx.inspectFuncUpdateOrderInTx(ctx, tx, order)
+	}
+
+	mm_params := OrderRepositoryMockUpdateOrderInTxParams{ctx, tx, order}
+
+	// Record call args
+	mmUpdateOrderInTx.UpdateOrderInTxMock.mutex.Lock()
+	mmUpdateOrderInTx.UpdateOrderInTxMock.callArgs = append(mmUpdateOrderInTx.UpdateOrderInTxMock.callArgs, &mm_params)
+	mmUpdateOrderInTx.UpdateOrderInTxMock.mutex.Unlock()
+
+	for _, e := range mmUpdateOrderInTx.UpdateOrderInTxMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.err
+		}
+	}
+
+	if mmUpdateOrderInTx.UpdateOrderInTxMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmUpdateOrderInTx.UpdateOrderInTxMock.defaultExpectation.Counter, 1)
+		mm_want := mmUpdateOrderInTx.UpdateOrderInTxMock.defaultExpectation.params
+		mm_want_ptrs := mmUpdateOrderInTx.UpdateOrderInTxMock.defaultExpectation.paramPtrs
+
+		mm_got := OrderRepositoryMockUpdateOrderInTxParams{ctx, tx, order}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmUpdateOrderInTx.t.Errorf("OrderRepositoryMock.UpdateOrderInTx got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateOrderInTx.UpdateOrderInTxMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.tx != nil && !minimock.Equal(*mm_want_ptrs.tx, mm_got.tx) {
+				mmUpdateOrderInTx.t.Errorf("OrderRepositoryMock.UpdateOrderInTx got unexpected parameter tx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateOrderInTx.UpdateOrderInTxMock.defaultExpectation.expectationOrigins.originTx, *mm_want_ptrs.tx, mm_got.tx, minimock.Diff(*mm_want_ptrs.tx, mm_got.tx))
+			}
+
+			if mm_want_ptrs.order != nil && !minimock.Equal(*mm_want_ptrs.order, mm_got.order) {
+				mmUpdateOrderInTx.t.Errorf("OrderRepositoryMock.UpdateOrderInTx got unexpected parameter order, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateOrderInTx.UpdateOrderInTxMock.defaultExpectation.expectationOrigins.originOrder, *mm_want_ptrs.order, mm_got.order, minimock.Diff(*mm_want_ptrs.order, mm_got.order))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmUpdateOrderInTx.t.Errorf("OrderRepositoryMock.UpdateOrderInTx got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmUpdateOrderInTx.UpdateOrderInTxMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmUpdateOrderInTx.UpdateOrderInTxMock.defaultExpectation.results
+		if mm_results == nil {
+			mmUpdateOrderInTx.t.Fatal("No results are set for the OrderRepositoryMock.UpdateOrderInTx")
+		}
+		return (*mm_results).err
+	}
+	if mmUpdateOrderInTx.funcUpdateOrderInTx != nil {
+		return mmUpdateOrderInTx.funcUpdateOrderInTx(ctx, tx, order)
+	}
+	mmUpdateOrderInTx.t.Fatalf("Unexpected call to OrderRepositoryMock.UpdateOrderInTx. %v %v %v", ctx, tx, order)
+	return
+}
+
+// UpdateOrderInTxAfterCounter returns a count of finished OrderRepositoryMock.UpdateOrderInTx invocations
+func (mmUpdateOrderInTx *OrderRepositoryMock) UpdateOrderInTxAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmUpdateOrderInTx.afterUpdateOrderInTxCounter)
+}
+
+// UpdateOrderInTxBeforeCounter returns a count of OrderRepositoryMock.UpdateOrderInTx invocations
+func (mmUpdateOrderInTx *OrderRepositoryMock) UpdateOrderInTxBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmUpdateOrderInTx.beforeUpdateOrderInTxCounter)
+}
+
+// Calls returns a list of arguments used in each call to OrderRepositoryMock.UpdateOrderInTx.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmUpdateOrderInTx *mOrderRepositoryMockUpdateOrderInTx) Calls() []*OrderRepositoryMockUpdateOrderInTxParams {
+	mmUpdateOrderInTx.mutex.RLock()
+
+	argCopy := make([]*OrderRepositoryMockUpdateOrderInTxParams, len(mmUpdateOrderInTx.callArgs))
+	copy(argCopy, mmUpdateOrderInTx.callArgs)
+
+	mmUpdateOrderInTx.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockUpdateOrderInTxDone returns true if the count of the UpdateOrderInTx invocations corresponds
+// the number of defined expectations
+func (m *OrderRepositoryMock) MinimockUpdateOrderInTxDone() bool {
+	if m.UpdateOrderInTxMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.UpdateOrderInTxMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.UpdateOrderInTxMock.invocationsDone()
+}
+
+// MinimockUpdateOrderInTxInspect logs each unmet expectation
+func (m *OrderRepositoryMock) MinimockUpdateOrderInTxInspect() {
+	for _, e := range m.UpdateOrderInTxMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to OrderRepositoryMock.UpdateOrderInTx at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterUpdateOrderInTxCounter := mm_atomic.LoadUint64(&m.afterUpdateOrderInTxCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.UpdateOrderInTxMock.defaultExpectation != nil && afterUpdateOrderInTxCounter < 1 {
+		if m.UpdateOrderInTxMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to OrderRepositoryMock.UpdateOrderInTx at\n%s", m.UpdateOrderInTxMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to OrderRepositoryMock.UpdateOrderInTx at\n%s with params: %#v", m.UpdateOrderInTxMock.defaultExpectation.expectationOrigins.origin, *m.UpdateOrderInTxMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcUpdateOrderInTx != nil && afterUpdateOrderInTxCounter < 1 {
+		m.t.Errorf("Expected call to OrderRepositoryMock.UpdateOrderInTx at\n%s", m.funcUpdateOrderInTxOrigin)
+	}
+
+	if !m.UpdateOrderInTxMock.invocationsDone() && afterUpdateOrderInTxCounter > 0 {
+		m.t.Errorf("Expected %d calls to OrderRepositoryMock.UpdateOrderInTx at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.UpdateOrderInTxMock.expectedInvocations), m.UpdateOrderInTxMock.expectedInvocationsOrigin, afterUpdateOrderInTxCounter)
+	}
+}
+
 // MinimockFinish checks that all mocked methods have been called the expected number of times
 func (m *OrderRepositoryMock) MinimockFinish() {
 	m.finishOnce.Do(func() {
@@ -3165,7 +4315,13 @@ func (m *OrderRepositoryMock) MinimockFinish() {
 
 			m.MinimockSaveHistoryInspect()
 
+			m.MinimockSaveHistoryInTxInspect()
+
+			m.MinimockSaveOrderInTxInspect()
+
 			m.MinimockUpdateInspect()
+
+			m.MinimockUpdateOrderInTxInspect()
 		}
 	})
 }
@@ -3197,5 +4353,8 @@ func (m *OrderRepositoryMock) minimockDone() bool {
 		m.MinimockGetReturnedOrdersDone() &&
 		m.MinimockSaveDone() &&
 		m.MinimockSaveHistoryDone() &&
-		m.MinimockUpdateDone()
+		m.MinimockSaveHistoryInTxDone() &&
+		m.MinimockSaveOrderInTxDone() &&
+		m.MinimockUpdateDone() &&
+		m.MinimockUpdateOrderInTxDone()
 }

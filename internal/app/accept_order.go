@@ -8,7 +8,6 @@ import (
 	"gitlab.ozon.dev/safariproxd/homework/pkg/db"
 )
 
-// удалил часть валидации из бизнес логики, ибо в protoc validate она уже встроена
 func (s *PVZService) AcceptOrder(ctx context.Context, req domain.AcceptOrderRequest) (float64, error) {
 	currentTime := s.nowFn()
 
@@ -52,6 +51,7 @@ func (s *PVZService) AcceptOrder(ctx context.Context, req domain.AcceptOrderRequ
 		Status:    domain.StatusInStorage,
 		ChangedAt: currentTime,
 	}
+
 	event := domain.NewEvent(
 		domain.EventTypeOrderAccepted,
 		domain.Actor{
@@ -64,29 +64,28 @@ func (s *PVZService) AcceptOrder(ctx context.Context, req domain.AcceptOrderRequ
 			Status: "accepted",
 		},
 	)
+
 	if s.dbClient == nil {
 		if err := s.orderRepo.Save(ctx, order); err != nil {
 			return 0, fmt.Errorf("repo.Save: %w", err)
 		}
 
-		history := domain.OrderHistory{
-			OrderID:   req.OrderID,
-			Status:    domain.StatusInStorage,
-			ChangedAt: currentTime,
-		}
 		if err := s.orderRepo.SaveHistory(ctx, history); err != nil {
 			return 0, fmt.Errorf("repo.SaveHistory: %w", err)
 		}
 
-		return totalPrice, nil
+		s.metricsProvider.OrderAccepted()
+		s.metricsProvider.RefreshOrderStatusMetrics(s.orderRepo)
 
+		return totalPrice, nil
 	}
-	err := s.withTransaction(ctx, func(tx *db.Tx) error {
-		if err := saveOrderInTx(ctx, tx, order); err != nil {
+
+	err := s.dbClient.WithTransaction(ctx, func(tx *db.Tx) error {
+		if err := s.orderRepo.SaveOrderInTx(ctx, tx, order); err != nil {
 			return fmt.Errorf("save order: %w", err)
 		}
 
-		if err := saveHistoryInTx(ctx, tx, history); err != nil {
+		if err := s.orderRepo.SaveHistoryInTx(ctx, tx, history); err != nil {
 			return fmt.Errorf("save history: %w", err)
 		}
 
@@ -100,6 +99,9 @@ func (s *PVZService) AcceptOrder(ctx context.Context, req domain.AcceptOrderRequ
 	if err != nil {
 		return 0, err
 	}
+
+	s.metricsProvider.OrderAccepted()
+	s.metricsProvider.RefreshOrderStatusMetrics(s.orderRepo)
 
 	return totalPrice, nil
 }

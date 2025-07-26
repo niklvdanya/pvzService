@@ -37,6 +37,13 @@ type Config struct {
 		MigrationsDir string `yaml:"migrations_dir"`
 	} `yaml:"db"`
 
+	Cache struct {
+		MaxSize         int           `yaml:"max_size"`
+		TTL             time.Duration `yaml:"ttl"`
+		CleanupInterval time.Duration `yaml:"cleanup_interval"`
+		Enabled         bool          `yaml:"enabled"`
+	} `yaml:"cache"`
+
 	Kafka struct {
 		Brokers  []string `yaml:"brokers"`
 		Topic    string   `yaml:"topic"`
@@ -50,7 +57,13 @@ type Config struct {
 		WorkerInterval time.Duration `yaml:"worker_interval"`
 		BatchSize      int           `yaml:"batch_size"`
 	} `yaml:"outbox"`
+
 	Telegram telegram.TelegramConfig `yaml:"telegram"`
+
+	Tracing struct {
+		Enabled  bool   `yaml:"enabled"`
+		Endpoint string `yaml:"endpoint" env:"OTEL_EXPORTER_OTLP_ENDPOINT"`
+	} `yaml:"tracing"`
 }
 
 func (c *Config) ReadDSN() string {
@@ -78,6 +91,20 @@ func Load(path string) (*Config, error) {
 
 	if err := env.Parse(&cfg); err != nil {
 		return nil, errors.Wrap(err, "parse env")
+	}
+
+	if cfg.Cache.MaxSize == 0 {
+		cfg.Cache.MaxSize = 1000
+	}
+	if cfg.Cache.TTL == 0 {
+		cfg.Cache.TTL = 5 * time.Minute
+	}
+	if cfg.Cache.CleanupInterval == 0 {
+		cfg.Cache.CleanupInterval = 10 * time.Minute
+	}
+
+	if cfg.Tracing.Endpoint == "" {
+		cfg.Tracing.Endpoint = "http://jaeger:4318"
 	}
 	return &cfg, nil
 }

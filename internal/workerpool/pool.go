@@ -2,8 +2,16 @@ package workerpool
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
+	"runtime"
 	"sync"
 	"sync/atomic"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type Pool struct {
@@ -13,8 +21,10 @@ type Pool struct {
 	cancel  context.CancelFunc
 	wg      sync.WaitGroup
 	workers int32
+	active  int32
 	mu      sync.RWMutex
 	closed  bool
+	tracer  trace.Tracer
 }
 
 func New(workerCnt, queueSize int) *Pool {
@@ -31,6 +41,7 @@ func New(workerCnt, queueSize int) *Pool {
 		kill:    make(chan struct{}, workerCnt*2),
 		rootCtx: ctx,
 		cancel:  cancel,
+		tracer:  otel.Tracer("pvz-workerpool"),
 	}
 	//nolint:gosec // workerCnt is always > 0 after validation above
 	atomic.StoreInt32(&p.workers, int32(workerCnt))
@@ -45,6 +56,59 @@ func (p *Pool) spawn(n int) {
 	}
 }
 
+func (p *Pool) executeJobWithPanicRecovery(ctx context.Context, job Job, workerType string) {
+	_, span := p.tracer.Start(ctx, "workerpool.execute_job",
+		trace.WithSpanKind(trace.SpanKindInternal),
+		trace.WithAttributes(
+			attribute.String("worker.type", workerType),
+			attribute.String("worker.id", getWorkerID()),
+		),
+	)
+	defer span.End()
+
+	defer func() {
+		if r := recover(); r != nil {
+			panicMsg := fmt.Sprintf("worker panic: %v", r)
+
+			slog.Error("Worker panic recovered",
+				"panic", r,
+				"worker_type", workerType,
+				"worker_id", getWorkerID(),
+			)
+
+			span.SetStatus(codes.Error, panicMsg)
+			span.SetAttributes(
+				attribute.String("panic.value", fmt.Sprintf("%v", r)),
+				attribute.String("panic.type", fmt.Sprintf("%T", r)),
+				attribute.Bool("panic.recovered", true),
+			)
+
+			span.AddEvent("panic.recovered", trace.WithAttributes(
+				attribute.String("panic.message", panicMsg),
+			))
+
+			select {
+			case job.Resp <- Response{Err: fmt.Errorf("%s panic: %v", workerType, r)}:
+			case <-job.Ctx.Done():
+			}
+			return
+		}
+		span.SetStatus(codes.Ok, "job completed successfully")
+	}()
+
+	v, err := job.Run(job.Ctx)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		span.SetAttributes(attribute.String("job.error", err.Error()))
+	}
+
+	select {
+	case job.Resp <- Response{Value: v, Err: err}:
+	case <-job.Ctx.Done():
+		span.AddEvent("job.context_cancelled")
+	}
+}
+
 func (p *Pool) worker() {
 	defer p.wg.Done()
 	for {
@@ -55,20 +119,21 @@ func (p *Pool) worker() {
 			if !ok {
 				return
 			}
-			// проверяем отмену контеста до выполнения
+
+			atomic.AddInt32(&p.active, 1)
+
 			if errCtx := job.Ctx.Err(); errCtx != nil {
 				select {
 				case job.Resp <- Response{Err: errCtx}:
 				default:
 				}
+				atomic.AddInt32(&p.active, -1)
 				continue
 			}
 
-			v, err := job.Run(job.Ctx)
-			select {
-			case job.Resp <- Response{Value: v, Err: err}:
-			case <-job.Ctx.Done():
-			}
+			p.executeJobWithPanicRecovery(job.Ctx, job, "async_worker")
+			atomic.AddInt32(&p.active, -1)
+
 		case <-p.rootCtx.Done():
 			return
 		}
@@ -80,11 +145,9 @@ func (p *Pool) Submit(j Job) {
 	case p.jobs <- j:
 	default:
 		// случай для заполненной очереди: выполняем задачу синхронно, чтобы не задерживать вызов rpc‑хендлера
-		v, err := j.Run(j.Ctx)
-		select {
-		case j.Resp <- Response{Value: v, Err: err}:
-		case <-j.Ctx.Done():
-		}
+		atomic.AddInt32(&p.active, 1)
+		p.executeJobWithPanicRecovery(j.Ctx, j, "sync_worker")
+		atomic.AddInt32(&p.active, -1)
 	}
 }
 
@@ -133,4 +196,37 @@ func (p *Pool) Close() {
 	}
 	p.wg.Wait()
 	close(p.kill)
+}
+
+func (p *Pool) ActiveWorkers() int {
+	return int(atomic.LoadInt32(&p.active))
+}
+
+func (p *Pool) WorkerCount() int {
+	return int(atomic.LoadInt32(&p.workers))
+}
+
+func (p *Pool) QueueSize() int {
+	return len(p.jobs)
+}
+
+func (p *Pool) QueueCapacity() int {
+	return cap(p.jobs)
+}
+
+func getWorkerID() string {
+	buf := make([]byte, 64)
+	buf = buf[:runtime.Stack(buf, false)]
+
+	const prefix = "goroutine "
+	if len(buf) > len(prefix) {
+		buf = buf[len(prefix):]
+		for i, b := range buf {
+			if b < '0' || b > '9' {
+				return string(buf[:i])
+			}
+		}
+	}
+
+	return "unknown"
 }

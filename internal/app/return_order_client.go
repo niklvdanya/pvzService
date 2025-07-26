@@ -18,7 +18,7 @@ func (s *PVZService) returnSingle(ctx context.Context, receiverID uint64, orderI
 	if order.ReceiverID != receiverID {
 		return domain.BelongsToDifferentReceiverError(orderID, receiverID, order.ReceiverID)
 	}
-	if order.Status == domain.StatusInStorage {
+	if order.Status == domain.StatusInStorage || order.Status == domain.StatusReturnedFromClient {
 		return domain.AlreadyInStorageError(orderID)
 	}
 	if now.Sub(order.LastUpdateTime) > 48*time.Hour {
@@ -57,12 +57,12 @@ func (s *PVZService) returnSingle(ctx context.Context, receiverID uint64, orderI
 		}
 		return s.orderRepo.SaveHistory(ctx, history)
 	}
-	return s.withTransaction(ctx, func(tx *db.Tx) error {
-		if err := updateOrderInTx(ctx, tx, order); err != nil {
+	return s.dbClient.WithTransaction(ctx, func(tx *db.Tx) error {
+		if err := s.orderRepo.UpdateOrderInTx(ctx, tx, order); err != nil {
 			return fmt.Errorf("update order: %w", err)
 		}
 
-		if err := saveHistoryInTx(ctx, tx, hist); err != nil {
+		if err := s.orderRepo.SaveHistoryInTx(ctx, tx, hist); err != nil {
 			return fmt.Errorf("save history: %w", err)
 		}
 
@@ -80,8 +80,12 @@ func (s *PVZService) ReturnOrdersFromClient(
 	orderIDs []uint64,
 ) error {
 	now := s.nowFn()
-	_, err := processConcurrently(ctx, orderIDs, s.workerLimit, func(c context.Context, id uint64) error {
+	processed, err := processConcurrently(ctx, orderIDs, s.workerLimit, func(c context.Context, id uint64) error {
 		return s.returnSingle(c, receiverID, id, now)
 	})
+
+	s.metricsProvider.OrdersReturned("by_client", processed)
+	s.metricsProvider.RefreshOrderStatusMetrics(s.orderRepo)
+
 	return err
 }

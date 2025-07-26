@@ -61,12 +61,12 @@ func (s *PVZService) issueSingle(ctx context.Context, receiverID uint64, orderID
 		}
 		return s.orderRepo.SaveHistory(ctx, history)
 	}
-	return s.withTransaction(ctx, func(tx *db.Tx) error {
-		if err := updateOrderInTx(ctx, tx, order); err != nil {
+	return s.dbClient.WithTransaction(ctx, func(tx *db.Tx) error {
+		if err := s.orderRepo.UpdateOrderInTx(ctx, tx, order); err != nil {
 			return fmt.Errorf("update order: %w", err)
 		}
 
-		if err := saveHistoryInTx(ctx, tx, hist); err != nil {
+		if err := s.orderRepo.SaveHistoryInTx(ctx, tx, hist); err != nil {
 			return fmt.Errorf("save history: %w", err)
 		}
 
@@ -83,8 +83,12 @@ func (s *PVZService) IssueOrdersToClient(
 	receiverID uint64,
 	orderIDs []uint64,
 ) error {
-	_, err := processConcurrently(ctx, orderIDs, s.workerLimit, func(c context.Context, id uint64) error {
+	processed, err := processConcurrently(ctx, orderIDs, s.workerLimit, func(c context.Context, id uint64) error {
 		return s.issueSingle(c, receiverID, id, s.nowFn())
 	})
+
+	s.metricsProvider.OrdersIssued(processed)
+	s.metricsProvider.RefreshOrderStatusMetrics(s.orderRepo)
+
 	return err
 }

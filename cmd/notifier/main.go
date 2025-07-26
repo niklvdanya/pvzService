@@ -12,6 +12,7 @@ import (
 	"gitlab.ozon.dev/safariproxd/homework/internal/config"
 	"gitlab.ozon.dev/safariproxd/homework/internal/infra/kafka"
 	"gitlab.ozon.dev/safariproxd/homework/internal/infra/telegram"
+	"gitlab.ozon.dev/safariproxd/homework/internal/metrics"
 )
 
 func main() {
@@ -20,6 +21,7 @@ func main() {
 		slog.Error("Config load failed", "error", err)
 		os.Exit(1)
 	}
+	metricsProvider := metrics.NewPrometheusProvider()
 
 	telegramClient := telegram.NewTelegramClient(cfg.Telegram)
 	telegramNotifier := telegram.NewTelegramNotifier(telegramClient)
@@ -47,7 +49,7 @@ func main() {
 	}
 	defer consumer.Close()
 
-	eventHandler := NewEventHandler(telegramNotifier)
+	eventHandler := NewEventHandler(telegramNotifier, metricsProvider)
 	notifier := NewNotifierService(consumer, eventHandler)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

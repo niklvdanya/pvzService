@@ -2,11 +2,13 @@ package mw
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
 
 	"github.com/ulule/limiter/v3"
 	server "gitlab.ozon.dev/safariproxd/homework/internal/adapter/grpc"
+	"gitlab.ozon.dev/safariproxd/homework/internal/metrics"
 	"gitlab.ozon.dev/safariproxd/homework/internal/workerpool"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -82,7 +84,7 @@ func TimeoutInterceptor(timeout time.Duration) grpc.UnaryServerInterceptor {
 
 		resp, err := handler(ctx, req)
 
-		if ctx.Err() == context.DeadlineExceeded && err == nil {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) && err == nil {
 			return nil, status.Error(codes.DeadlineExceeded, "service timeout")
 		}
 		return resp, err
@@ -103,5 +105,23 @@ func PoolInterceptor(pool *workerpool.Pool) grpc.UnaryServerInterceptor {
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		}
+	}
+}
+
+func MetricsInterceptor(provider metrics.MetricsProvider) grpc.UnaryServerInterceptor {
+	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+		start := time.Now()
+
+		resp, err := handler(ctx, req)
+
+		duration := time.Since(start).Seconds()
+		statusCode := codes.OK
+		if err != nil {
+			statusCode = status.Code(err)
+		}
+
+		provider.RecordGRPCDuration(info.FullMethod, statusCode.String(), duration)
+
+		return resp, err
 	}
 }

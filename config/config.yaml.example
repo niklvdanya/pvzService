@@ -18,6 +18,12 @@ db:
     max_idle: 10
   migrations_dir: migrations
 
+cache:
+  enabled: true
+  max_size: 1000
+  ttl: 5m
+  cleanup_interval: 10m
+
 kafka:
   brokers:
     - kafka:29092
@@ -29,10 +35,17 @@ kafka:
 outbox:
   worker_interval: 5s
   batch_size: 100
+  dlq:
+    retry_interval: 5m
+    max_retries: 3
 
 telegram:
   bot_token: "API"
-  chat_id: 0 // получать через @userinfobot
+  chat_id: 0 # получать через @userinfobot
   enabled: true
   timeout: 10s
   retry_attempts: 3
+
+tracing:
+  enabled: true
+  endpoint: "http://jaeger:4318"

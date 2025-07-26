@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"gitlab.ozon.dev/safariproxd/homework/internal/domain"
+	"gitlab.ozon.dev/safariproxd/homework/internal/metrics"
 	"gitlab.ozon.dev/safariproxd/homework/pkg/db"
 	"golang.org/x/sync/errgroup"
 )
@@ -20,6 +21,9 @@ type OrderRepository interface {
 	GetPackageRules(ctx context.Context, code string) ([]domain.PackageRules, error)
 	SaveHistory(ctx context.Context, history domain.OrderHistory) error
 	GetHistoryByOrderID(ctx context.Context, orderID uint64) ([]domain.OrderHistory, error)
+	UpdateOrderInTx(ctx context.Context, tx *db.Tx, order domain.Order) error
+	SaveOrderInTx(ctx context.Context, tx *db.Tx, order domain.Order) error
+	SaveHistoryInTx(ctx context.Context, tx *db.Tx, history domain.OrderHistory) error
 }
 
 type OutboxRepository interface {
@@ -27,14 +31,22 @@ type OutboxRepository interface {
 }
 
 type PVZService struct {
-	orderRepo   OrderRepository
-	outboxRepo  OutboxRepository
-	dbClient    *db.Client
-	nowFn       func() time.Time
-	workerLimit int
+	orderRepo       OrderRepository
+	outboxRepo      OutboxRepository
+	dbClient        *db.Client
+	nowFn           func() time.Time
+	workerLimit     int
+	metricsProvider metrics.MetricsProvider
 }
 
-func NewPVZService(orderRepo OrderRepository, outboxRepo OutboxRepository, dbClient *db.Client, nowFn func() time.Time, limit int) *PVZService {
+func NewPVZService(
+	orderRepo OrderRepository,
+	outboxRepo OutboxRepository,
+	dbClient *db.Client,
+	nowFn func() time.Time,
+	limit int,
+	metricsProvider metrics.MetricsProvider,
+) *PVZService {
 	if nowFn == nil {
 		nowFn = time.Now
 	}
@@ -42,11 +54,12 @@ func NewPVZService(orderRepo OrderRepository, outboxRepo OutboxRepository, dbCli
 		limit = 1
 	}
 	return &PVZService{
-		orderRepo:   orderRepo,
-		outboxRepo:  outboxRepo,
-		dbClient:    dbClient,
-		nowFn:       nowFn,
-		workerLimit: limit,
+		orderRepo:       orderRepo,
+		outboxRepo:      outboxRepo,
+		dbClient:        dbClient,
+		nowFn:           nowFn,
+		workerLimit:     limit,
+		metricsProvider: metricsProvider,
 	}
 }
 

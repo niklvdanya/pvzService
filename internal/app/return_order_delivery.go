@@ -49,23 +49,27 @@ func (s *PVZService) ReturnOrderToDelivery(ctx context.Context, orderID uint64) 
 			Status: "returned_to_courier",
 		},
 	)
+
 	if s.dbClient == nil {
 		if err := s.orderRepo.Update(ctx, order); err != nil {
 			return fmt.Errorf("failed to update order: %w", err)
 		}
-		history := domain.OrderHistory{
-			OrderID:   order.OrderID,
-			Status:    order.Status,
-			ChangedAt: order.AcceptTime,
+
+		if err := s.orderRepo.SaveHistory(ctx, history); err != nil {
+			return fmt.Errorf("failed to save history: %w", err)
 		}
-		return s.orderRepo.SaveHistory(ctx, history)
+
+		s.metricsProvider.OrdersReturned("to_courier", 1)
+		s.metricsProvider.RefreshOrderStatusMetrics(s.orderRepo)
+		return nil
 	}
-	return s.withTransaction(ctx, func(tx *db.Tx) error {
-		if err := updateOrderInTx(ctx, tx, order); err != nil {
+
+	return s.dbClient.WithTransaction(ctx, func(tx *db.Tx) error {
+		if err := s.orderRepo.UpdateOrderInTx(ctx, tx, order); err != nil {
 			return fmt.Errorf("update order: %w", err)
 		}
 
-		if err := saveHistoryInTx(ctx, tx, history); err != nil {
+		if err := s.orderRepo.SaveHistoryInTx(ctx, tx, history); err != nil {
 			return fmt.Errorf("save history: %w", err)
 		}
 
@@ -73,6 +77,8 @@ func (s *PVZService) ReturnOrderToDelivery(ctx context.Context, orderID uint64) 
 			return fmt.Errorf("save event: %w", err)
 		}
 
+		s.metricsProvider.OrdersReturned("to_courier", 1)
+		s.metricsProvider.RefreshOrderStatusMetrics(s.orderRepo)
 		return nil
 	})
 }

@@ -6,6 +6,7 @@ variables:
   GOLANGCI_LINT_VERSION: v1.61.0
   GO_BUILD_DIR: $CI_PROJECT_DIR/build
   GO_COVER_PACKAGES: "./..."
+  TESTING: "true"
 
 stages:
   - dependencies
@@ -50,8 +51,12 @@ lint_go:
 go_test:
   stage: test
   needs: ["go_mod_download"]
+  variables:
+    TESTING: "true"
   script:
     - export PATH=$PATH:$GOBIN
+    - export TESTING=true
+    - echo "Running tests with TESTING=$TESTING"
     - go test -v -cover -coverpkg=$GO_COVER_PACKAGES ./... -coverprofile=coverage.out
     - go tool cover -html=coverage.out -o coverage.html
   cache:
